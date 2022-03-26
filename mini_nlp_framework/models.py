@@ -10,7 +10,14 @@ from mini_nlp_framework.torch_utils import get_best_available_device, get_layers
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Type
+
+
+@dataclass
+class ClassificationHeadSingleArch:
+    p_drop:float=0.2
+    res_blocks_ftrs:Optional[List[int]]=None
+    two_steps_lin:bool=False
 
 
 class ClassificationHeadSingle(nn.Module):
@@ -21,59 +28,67 @@ class ClassificationHeadSingle(nn.Module):
         in_ftrs: number of input features (last dimension).
         n_classes: number of output classes, which is the size of the last dimension of the output logits.
         max_seq_len: maximum sequence length (second dimension) of inputs that the model can receive.
-        p_drop: `p` param of the dropout layers.
-        res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the 
-            linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of residual 
-            blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
-        two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
-            provide stability.
+        arch:
+            p_drop: `p` param of the dropout layers.
+            res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the 
+                linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of 
+                residual blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
+            two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
+                provide stability.
     """
-    def __init__(
-        self, in_ftrs:int, n_classes:int, max_seq_len:int, p_drop:float=0, res_blocks_ftrs:Optional[List[int]]=None, 
-        two_steps_lin=False
-    ):
+    def __init__(self, in_ftrs:int, n_classes:int, max_seq_len:int, arch:ClassificationHeadSingleArch):
         super().__init__()
         out_ftrs = 1 if n_classes <= 2 else n_classes
-        if res_blocks_ftrs is None: res_blocks_ftrs = []
-        res_blocks_ftrs.insert(0, 1)
+        if arch.res_blocks_ftrs is None: arch.res_blocks_ftrs = []
+        arch.res_blocks_ftrs.insert(0, 1)
         def _rb_drop_value(i):
-            return p_drop if i < (len(res_blocks_ftrs) - 1) else 0
+            return arch.p_drop if i < (len(arch.res_blocks_ftrs) - 1) else 0
         layers = [
-            LinResBlock(in_ftrs * res_blocks_ftrs[i-1], in_ftrs * res_blocks_ftrs[i], p_drop=_rb_drop_value(i)) 
-            for i in range(1, len(res_blocks_ftrs))
+            LinResBlock(
+                in_ftrs * arch.res_blocks_ftrs[i-1], 
+                in_ftrs * arch.res_blocks_ftrs[i], 
+                p_drop=_rb_drop_value(i)
+            ) 
+            for i in range(1, len(arch.res_blocks_ftrs))
         ]
-        if two_steps_lin:
+        if arch.two_steps_lin:
             if out_ftrs == 1:
                 layers.extend([
-                    nn.Dropout(p_drop),
+                    nn.Dropout(arch.p_drop),
                     nn.Linear(in_ftrs, 1),
                     Lambda(lambda x: x.contiguous().view(x.shape[0], -1)),
                     nn.ReLU(),
-                    nn.Dropout(p_drop),
+                    nn.Dropout(arch.p_drop),
                     nn.Linear(max_seq_len, out_ftrs)
                 ])
             else:
                 # For multi-class classification it doesn't make sense to reduce the features to 1 first, so we
                 # transpose to reduce to 1 just at the sequence dimension
                 layers.extend([
-                    nn.Dropout(p_drop),
+                    nn.Dropout(arch.p_drop),
                     Lambda(lambda x: x.transpose(1, 2)),
                     nn.Linear(max_seq_len, 1),
                     Lambda(lambda x: x.contiguous().view(x.shape[0], -1)),
                     nn.ReLU(),
-                    nn.Dropout(p_drop),
+                    nn.Dropout(arch.p_drop),
                     nn.Linear(in_ftrs, out_ftrs)
                 ])
         else:
             layers.extend([
                 Lambda(lambda x: x.contiguous().view(x.shape[0], -1)),
-                nn.Dropout(p_drop),
+                nn.Dropout(arch.p_drop),
                 nn.Linear(in_ftrs * max_seq_len, out_ftrs),                
             ])
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.layers(x)
+
+
+@dataclass
+class ClassificationHeadMultiArch:
+    p_drop:float=0
+    res_blocks_ftrs:Optional[List[int]]=None
 
 
 class ClassificationHeadMulti(nn.Module):
@@ -83,25 +98,28 @@ class ClassificationHeadMulti(nn.Module):
     Args:
         in_ftrs: number of input features (last dimension).
         n_classes: number of output classes, which is the size of the last dimension of the output logits.
-        p_drop: `p` param of the dropout layer.
-        res_blocks_ftrs: multipliers of the number of output features of the residual blocks that must be included 
-            before the final dropout-linear. Therefore, `len(res_blocks_ftrs)` must be the number of residual blocks 
-            that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
+        arch:
+            p_drop: `p` param of the dropout layer.
+            res_blocks_ftrs: multipliers of the number of output features of the residual blocks that must be included 
+                before the final dropout-linear. Therefore, `len(res_blocks_ftrs)` must be the number of residual blocks 
+                that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
     """
-    def __init__(self, in_ftrs:int, n_classes:int, p_drop:float=0, res_blocks_ftrs:Optional[List[int]]=None):
+    def __init__(self, in_ftrs:int, n_classes:int, arch:Optional[ClassificationHeadMultiArch]=None):
         super().__init__()
         self.out_ftrs = 1 if n_classes <= 2 else n_classes
-        if res_blocks_ftrs is None: res_blocks_ftrs = []
-        res_blocks_ftrs.insert(0, 1)
+        if arch.res_blocks_ftrs is None: arch.res_blocks_ftrs = []
+        arch.res_blocks_ftrs.insert(0, 1)
         def _rb_drop_value(i):
-            return p_drop if i < (len(res_blocks_ftrs) - 1) else 0
+            return arch.p_drop if i < (len(arch.res_blocks_ftrs) - 1) else 0
         res_blocks = [
-            LinResBlock(in_ftrs * res_blocks_ftrs[i-1], in_ftrs * res_blocks_ftrs[i], p_drop=_rb_drop_value(i)) 
-            for i in range(1, len(res_blocks_ftrs))
+            LinResBlock(
+                in_ftrs * arch.res_blocks_ftrs[i-1], in_ftrs * arch.res_blocks_ftrs[i], p_drop=_rb_drop_value(i)
+            )
+            for i in range(1, len(arch.res_blocks_ftrs))
         ]
         self.layers = nn.Sequential(
             *res_blocks,
-            nn.Dropout(p_drop),            
+            nn.Dropout(arch.p_drop),            
             nn.Linear(in_ftrs, self.out_ftrs),
         )
 
@@ -121,29 +139,27 @@ class LinearClassifierFlattened(nn.Module):
         emb_drop: `p` param of the dropout layer placed after the embedding. Not applicable when 
             `res_blocks_ftrs` is None, because the dropout layer after the embedding is also right before the
             final linear layer, so only `lin_drop` is taken into account.
-        lin_drop: `p` param of the dropout layers placed in the residual blocks and the one before the final linear 
-            layer.
-        res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the 
-            linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of residual 
-            blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
-        two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
-            provide stability.
+        head_arch:
+            p_drop: `p` param of the dropout layers placed in the residual blocks and the one before the final linear 
+                layer.
+            res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the
+                linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of 
+                residual blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
+            two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
+                provide stability.
     """
     def __init__(
         self, vocab:Vocab, n_classes:int, max_seq_len:int, embedding_source:EmbeddingsSource, emb_drop:float=0.15,
-        lin_drop:float=0.2, res_blocks_ftrs:Optional[List[int]]=None, two_steps_lin=False
+        head_arch:Optional[ClassificationHeadSingleArch]=None
     ):
         super().__init__()
-        if (res_blocks_ftrs is None) or (len(res_blocks_ftrs) == 0):
+        if head_arch is None: head_arch = ClassificationHeadSingleArch()
+        if (head_arch.res_blocks_ftrs is None) or (len(head_arch.res_blocks_ftrs) == 0):
             # In this case there would be 2 consecutive dropout layers if `emb_drop > 0`
             emb_drop = 0.
         self._embedding = get_embedding(embedding_source, vocab, max_seq_len, p_drop=emb_drop)
         emb_out_ftrs = self._embedding.out_ftrs
-
-        self.clf = ClassificationHeadSingle(
-            emb_out_ftrs, n_classes, max_seq_len, p_drop=lin_drop, res_blocks_ftrs=res_blocks_ftrs, 
-            two_steps_lin=two_steps_lin
-        )
+        self.clf = ClassificationHeadSingle(emb_out_ftrs, n_classes, max_seq_len, head_arch)
     
     @property
     def embedding(self) -> BaseEmbedding:
@@ -151,6 +167,14 @@ class LinearClassifierFlattened(nn.Module):
 
     def forward(self, x):
         return self.clf(self._embedding(x))
+
+
+@dataclass
+class RNNBackboneArch:
+    embedding_source:EmbeddingsSource
+    rnn_cls:Type[nn.RNNBase]=nn.RNN
+    emb_drop:float=0.1
+    rnn_drop:float=0.1
 
 
 class RNNBackbone(nn.Module):
@@ -161,20 +185,18 @@ class RNNBackbone(nn.Module):
         vocab: vocabulary of the data.
         hidden_ftrs: number of hidden features of the RNN.
         max_seq_len: maximum sequence length of inputs that the model can receive.
-        embedding_source: type of embedding.
-        rnn_cls: class of the recurrent neural network. It can be nn.RNN or nn.LSTM.
-        emb_drop: `p` param of the dropout layer placed after the embedding.
-        rnn_drop: `p` param of the dropout applied on the outputs of each RNN layer except the last layer.
+        arch:
+            embedding_source: type of embedding.
+            rnn_cls: class of the recurrent neural network. It can be nn.RNN or nn.LSTM.
+            emb_drop: `p` param of the dropout layer placed after the embedding.
+            rnn_drop: `p` param of the dropout applied on the outputs of each RNN layer except the last layer.
     """
-    def __init__(
-        self, vocab, hidden_ftrs:int, max_seq_len:int, embedding_source:EmbeddingsSource, rnn_cls=nn.RNN, 
-        emb_drop=0.1, rnn_drop=0.1, **rnn_args
-    ):
+    def __init__(self, vocab:Vocab, hidden_ftrs:int, max_seq_len:int, arch:RNNBackboneArch, **rnn_args):
         super().__init__()
         self.max_seq_len = max_seq_len
-        self.embedding = get_embedding(embedding_source, vocab, max_seq_len, p_drop=emb_drop)
+        self.embedding = get_embedding(arch.embedding_source, vocab, max_seq_len, p_drop=arch.emb_drop)
         emb_out_ftrs = self.embedding.out_ftrs
-        self.rnn = rnn_cls(emb_out_ftrs, hidden_ftrs, batch_first=True, dropout=rnn_drop, **rnn_args)
+        self.rnn = arch.rnn_cls(emb_out_ftrs, hidden_ftrs, batch_first=True, dropout=arch.rnn_drop, **rnn_args)
 
     def forward(self, x, seq_lengths):
         """
@@ -206,34 +228,26 @@ class RNNClassifierFlattened(nn.Module):
         n_classes: number of output classes, which is the size of the last dimension of the output logits.
         hidden_ftrs: number of hidden features used by the RNN.
         max_seq_len: maximum sequence length of inputs that the model can receive.
-        embedding_source: type of embedding.
-        rnn_cls: class of the recurrent neural network. It can be nn.RNN or nn.LSTM.
-        emb_drop: `p` param of the dropout layer placed after the embedding.
-        rnn_drop: `p` param of the dropout applied on the outputs of each RNN layer except the last layer.
-        lin_drop: `p` param of the dropout layer placed before the final linear layer.
-        weight_tying: if True, the weights of the input embedding and the weights of the
-            final linear layer are the same.
-        norm_type: type of normalization applied before the last dropout and linear layer.
-        res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the 
-            linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of residual 
-            blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
-        two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
-            provide stability.
+        backbone_arch:
+            embedding_source: type of embedding.
+            rnn_cls: class of the recurrent neural network. It can be nn.RNN or nn.LSTM.
+            emb_drop: `p` param of the dropout layer placed after the embedding.
+            rnn_drop: `p` param of the dropout applied on the outputs of each RNN layer except the last layer.
+        head_arch:
+            p_drop: `p` param of the dropout layer placed before the final linear layer.
+            res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the 
+                linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of residual 
+                blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
+            two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
+                provide stability.
     """
     def __init__(
-        self, vocab, n_classes:int, hidden_ftrs:int, max_seq_len:int, embedding_source:EmbeddingsSource, 
-        rnn_cls=nn.RNN, emb_drop=0.1, rnn_drop=0.1, lin_drop=0.15, res_blocks_ftrs:Optional[List[int]]=None, 
-        two_steps_lin=False, **rnn_args
+        self, vocab, n_classes:int, hidden_ftrs:int, max_seq_len:int, backbone_arch:RNNBackboneArch, 
+        head_arch:Optional[ClassificationHeadSingleArch]=None, **rnn_args
     ):
         super().__init__()
-        self.backbone = RNNBackbone(
-            vocab, hidden_ftrs, max_seq_len, embedding_source, rnn_cls=rnn_cls, emb_drop=emb_drop, 
-            rnn_drop=rnn_drop, **rnn_args
-        )
-        self.clf = ClassificationHeadSingle(
-            hidden_ftrs, n_classes, max_seq_len, p_drop=lin_drop, res_blocks_ftrs=res_blocks_ftrs, 
-            two_steps_lin=two_steps_lin
-        )
+        self.backbone = RNNBackbone(vocab, hidden_ftrs, max_seq_len, backbone_arch, **rnn_args)
+        self.clf = ClassificationHeadSingle(hidden_ftrs, n_classes, max_seq_len, head_arch)
     
     @property
     def embedding(self) -> BaseEmbedding:
@@ -264,32 +278,32 @@ class RNNClassifierMulti(nn.Module):
             language model, it should be the length of the vocabulary.
         hidden_ftrs: number of hidden features used by the RNN.
         max_seq_len: maximum sequence length of inputs that the model can receive.
-        embedding_source: type of embedding.
-        rnn_cls: class of the recurrent neural network. It can be nn.RNN or nn.LSTM.
-        emb_drop: `p` param of the dropout layer placed after the embedding.
-        rnn_drop: `p` param of the dropout applied on the outputs of each RNN layer except the last layer.
-        lin_drop: `p` param of the dropout layer placed before the final linear layer.
+        backbone_arch:
+            embedding_source: type of embedding.
+            rnn_cls: class of the recurrent neural network. It can be nn.RNN or nn.LSTM.
+            emb_drop: `p` param of the dropout layer placed after the embedding.
+            rnn_drop: `p` param of the dropout applied on the outputs of each RNN layer except the last layer.
+        head_arch:
+            lin_drop: `p` param of the dropout layer placed before the final linear layer.
+            res_blocks_ftrs: multipliers of the number of output features of the residual blocks that must be included 
+                before the final dropout-linear. Therefore, `len(res_blocks_ftrs)` must be the number of residual blocks 
+                that you wish to include and `res_blocks_ftrs[-1]` must always be 1.        
         weight_tying: if True, the weights of the input embedding and the weights of the
             final linear layer are the same.
         norm_type: type of normalization applied before the last dropout and linear layer.
-        res_blocks_ftrs: multipliers of the number of output features of the residual blocks that must be included 
-            before the final dropout-linear. Therefore, `len(res_blocks_ftrs)` must be the number of residual blocks 
-            that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
+
     """
     def __init__(
-        self, vocab:Vocab, n_classes, hidden_ftrs:int, max_seq_len:int, embedding_source:EmbeddingsSource,
-        rnn_cls=nn.RNN, emb_drop=0.1, rnn_drop=0.15, lin_drop=0.15, weight_tying=False, norm_type=NormType.No,
-        res_blocks_ftrs:Optional[List[int]]=None, **rnn_args
+        self, vocab:Vocab, n_classes, hidden_ftrs:int, max_seq_len:int, backbone_arch:RNNBackboneArch, 
+        head_arch:Optional[ClassificationHeadMultiArch]=None, weight_tying=False, norm_type=NormType.No, 
+        **rnn_args
     ):
         super().__init__()
-        self.backbone = RNNBackbone(
-            vocab, hidden_ftrs, max_seq_len, embedding_source, rnn_cls=rnn_cls, emb_drop=emb_drop, 
-            rnn_drop=rnn_drop, **rnn_args,
-        )
+        self.backbone = RNNBackbone(vocab, hidden_ftrs, max_seq_len, backbone_arch, **rnn_args)
         self.norm = get_norm(norm_type, hidden_ftrs)
         self.clf = nn.Sequential(
             Lambda(lambda x: apply_norm(self.norm, x)),
-            ClassificationHeadMulti(hidden_ftrs, n_classes, lin_drop, res_blocks_ftrs=res_blocks_ftrs),
+            ClassificationHeadMulti(hidden_ftrs, n_classes, head_arch),
         )
         out_ftrs = self.clf[-1].out_ftrs
         can_tie_weights = (hidden_ftrs == self.backbone.embedding.out_ftrs) and (out_ftrs == len(vocab.idx_to_word))
@@ -316,36 +330,47 @@ class RNNClassifierMulti(nn.Module):
         return self.clf(x)
 
 
+@dataclass
+class SemiTransformerBackboneArch:
+    embedding_source:EmbeddingsSource
+    n_heads:int=1 
+    n_layers:int=6 
+    tfm_mlp_ftrs:int=2048
+    emb_drop:float=0.1
+    tfm_drop:float=0.1
+
+
 class SemiTransformerBackbone(nn.Module):
     """
     Backbone composed by an embedding and a transformer encoder.
 
     Args:
         vocab: vocabulary of the data.
-        max_seq_len: maximum sequence length of inputs that the model can receive.          
-        embedding_source: type of embedding.    
-        n_heads: number of heads in the attention layers.
-        n_layers: number of blocks (Attention+MLP) of the transformer.
-        tfm_mlp_ftrs: number of intermediate features used in the fully connected layers of the transformer.
-        emb_drop: `p` param of the dropout layer placed after the embedding.
-        tfm_drop: `p` param of the dropout layers placed inside the transformer.
+        max_seq_len: maximum sequence length of inputs that the model can receive. 
+        arch:         
+            embedding_source: type of embedding.    
+            n_heads: number of heads in the attention layers.
+            n_layers: number of blocks (Attention+MLP) of the transformer.
+            tfm_mlp_ftrs: number of intermediate features used in the fully connected layers of the transformer.
+            emb_drop: `p` param of the dropout layer placed after the embedding.
+            tfm_drop: `p` param of the dropout layers placed inside the transformer.
     """
     def __init__(
-            self, vocab, max_seq_len:int, embedding_source:EmbeddingsSource, n_heads=1, n_layers=6, tfm_mlp_ftrs=2048,
-            emb_drop=0.1, tfm_drop=0.1, use_causal_mask=False, **tfm_enc_kwargs
+            self, vocab, max_seq_len:int, arch:SemiTransformerBackboneArch, use_causal_mask=False, **tfm_enc_kwargs
         ):
         super().__init__()
         self.max_seq_len = max_seq_len
         self.use_causal_mask = use_causal_mask
         self.embedding = get_embedding(
-            embedding_source, vocab, max_seq_len, add_pos_emb=True, p_drop=emb_drop
+            arch.embedding_source, vocab, max_seq_len, add_pos_emb=True, p_drop=arch.emb_drop
         )
         in_ftrs = self.embedding.out_ftrs
         encoder_layer = nn.TransformerEncoderLayer(
-            in_ftrs, n_heads, dim_feedforward=tfm_mlp_ftrs, dropout=tfm_drop, batch_first=True, **tfm_enc_kwargs
+            in_ftrs, arch.n_heads, dim_feedforward=arch.tfm_mlp_ftrs, dropout=arch.tfm_drop, batch_first=True, 
+            **tfm_enc_kwargs,
         )
         encoder_norm = nn.LayerNorm(in_ftrs)
-        self.encoder = nn.TransformerEncoder(encoder_layer, n_layers, encoder_norm)
+        self.encoder = nn.TransformerEncoder(encoder_layer, arch.n_layers, encoder_norm)
         self._reset_enc_params()
         
     def _reset_enc_params(self):
@@ -366,35 +391,31 @@ class SemiTransformerClfFlattened(nn.Module):
     Args:
         vocab: vocabulary of the data
         n_classes: number of output classes, which is the size of the last dimension of the output logits
-        max_seq_len: maximum sequence length of inputs that the model can receive           
-        embedding_source: type of embedding
-        n_heads: number of heads in the attention layers
-        tfm_mlp_ftrs: number of intermediate features used in the fully connected layers of the transformer
-        emb_drop: `p` param of the dropout layer placed after the embedding
-        tfm_drop: `p` param of the dropout layers placed inside the transformer
-        lin_drop: `p` param of the dropout layer placed before the final linear layer
-        res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the 
-            linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of residual 
-            blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
-        two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
-            provide stability.
+        max_seq_len: maximum sequence length of inputs that the model can receive 
+        backbone_arch:          
+            embedding_source: type of embedding
+            n_heads: number of heads in the attention layers
+            tfm_mlp_ftrs: number of intermediate features used in the fully connected layers of the transformer
+            emb_drop: `p` param of the dropout layer placed after the embedding
+            tfm_drop: `p` param of the dropout layers placed inside the transformer
+        head_arch:
+            lin_drop: `p` param of the dropout layer placed before the final linear layer
+            res_blocks_ftrs: multipliers of the number of output features of the residual blocks to include before the
+                linear block(s) that reduce the features. Therefore, `len(res_blocks_ftrs)` must be the number of 
+                residual blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
+            two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
+                provide stability.
     """
     def __init__(
-            self, vocab, n_classes, max_seq_len:int, embedding_source:EmbeddingsSource, n_heads=1, n_layers=6, 
-            tfm_mlp_ftrs=2048, emb_drop=0.1, tfm_drop=0.1, lin_drop=0.15, use_causal_mask=False, 
-            res_blocks_ftrs:Optional[List[int]]=None, two_steps_lin=False, **tfm_enc_kwargs
+            self, vocab, n_classes, max_seq_len:int, backbone_arch:SemiTransformerBackboneArch, 
+            head_arch:Optional[ClassificationHeadSingleArch], use_causal_mask=False, **tfm_enc_kwargs
         ):
         super().__init__()
         self.backbone = SemiTransformerBackbone(
-            vocab, max_seq_len, embedding_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, 
-            emb_drop=emb_drop, tfm_drop=tfm_drop, use_causal_mask=use_causal_mask,
-            **tfm_enc_kwargs
+            vocab, max_seq_len, backbone_arch, use_causal_mask=use_causal_mask, **tfm_enc_kwargs,
         )
         hidden_ftrs = self.backbone.embedding.out_ftrs
-        self.clf = ClassificationHeadSingle(
-            hidden_ftrs, n_classes, max_seq_len, p_drop=lin_drop, res_blocks_ftrs=res_blocks_ftrs, 
-            two_steps_lin=two_steps_lin
-        )
+        self.clf = ClassificationHeadSingle(hidden_ftrs, n_classes, max_seq_len, head_arch)
         
     @property
     def embedding(self) -> BaseEmbedding:
@@ -422,30 +443,29 @@ class SemiTransformerClfMulti(nn.Module):
         vocab: vocabulary of the data.
         n_classes: number of output classes, which is the size of the last dimension of the output logits.
         max_seq_len: maximum sequence length of inputs that the model can receive.
-        embedding_source: type of embedding.
-        n_heads: number of heads in the attention layers.
-        tfm_mlp_ftrs: number of intermediate features used in the fully connected layers of the transformer.
-        emb_drop: `p` param of the dropout layer placed after the embedding.
-        tfm_drop: `p` param of the dropout layers placed inside the transformer.
-        lin_drop: `p` param of the dropout layer placed before the final linear layer.
-        res_blocks_ftrs: multipliers of the number of output features of the residual blocks that must be included 
-            before the final dropout-linear. Therefore, `len(res_blocks_ftrs)` must be the number of residual blocks 
-            that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
+        backbone_arch:
+            embedding_source: type of embedding.
+            n_heads: number of heads in the attention layers.
+            tfm_mlp_ftrs: number of intermediate features used in the fully connected layers of the transformer.
+            emb_drop: `p` param of the dropout layer placed after the embedding.
+            tfm_drop: `p` param of the dropout layers placed inside the transformer.
+        head_arch:
+            lin_drop: `p` param of the dropout layer placed before the final linear layer.
+            res_blocks_ftrs: multipliers of the number of output features of the residual blocks that must be included
+                before the final dropout-linear. Therefore, `len(res_blocks_ftrs)` must be the number of residual 
+                blocks that you wish to include and `res_blocks_ftrs[-1]` must always be 1.
     """
     def __init__(
-            self, vocab, n_classes, max_seq_len:int, embedding_source:EmbeddingsSource, n_heads=1, n_layers=6, 
-            tfm_mlp_ftrs=2048, emb_drop=0.1, tfm_drop=0.1, lin_drop=0.15, use_causal_mask=False, 
-            res_blocks_ftrs:Optional[List[int]]=None, **tfm_enc_kwargs
+            self, vocab, n_classes, max_seq_len:int, backbone_arch:SemiTransformerBackboneArch, 
+            head_arch:Optional[ClassificationHeadMultiArch]=None, use_causal_mask=False, 
+            **tfm_enc_kwargs
         ):
         super().__init__()
         self.backbone = SemiTransformerBackbone(
-            vocab, max_seq_len, embedding_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,
-            emb_drop=emb_drop, tfm_drop=tfm_drop, use_causal_mask=use_causal_mask, **tfm_enc_kwargs
+            vocab, max_seq_len, backbone_arch, use_causal_mask=use_causal_mask, **tfm_enc_kwargs
         )
         hidden_ftrs = self.backbone.embedding.out_ftrs
-        self.clf = ClassificationHeadMulti(
-            hidden_ftrs, n_classes, p_drop=lin_drop, res_blocks_ftrs=res_blocks_ftrs
-        )
+        self.clf = ClassificationHeadMulti(hidden_ftrs, n_classes, head_arch)
         
     @property
     def embedding(self) -> BaseEmbedding:
@@ -497,7 +517,7 @@ class QuickClassifierProvider(BaseModelProvider):
         if hp is None: hp = ClfHyperParameters()
         if device is None: device = get_best_available_device()
         model = LinearClassifierFlattened(
-            self.vocab, self.n_classes, self.max_seq_len, EmbeddingsSource.Spacy, emb_drop=0.15, lin_drop=0.2
+            self.vocab, self.n_classes, self.max_seq_len, EmbeddingsSource.Spacy, emb_drop=0.15,
         )
         model.to(device)
         embedding_params = model.embedding.parameters()
@@ -530,8 +550,11 @@ class CustomLanguageModelProvider(BaseModelProvider):
         if device is None: device = get_best_available_device()
         n_classes = len(self.vocab.idx_to_word)
         model = SemiTransformerClfMulti(
-            self.vocab, n_classes, EmbeddingsSource.Spacy, n_heads=3, max_seq_len=self.max_seq_len, emb_drop=0.2,
-            enc_drop=0.2, lin_drop=0.2, use_causal_mask=True
+            self.vocab, 
+            n_classes, 
+            self.max_seq_len,
+            SemiTransformerBackboneArch(EmbeddingsSource.Spacy, n_heads=3, emb_drop=0.2, tfm_drop=0.2),
+            use_causal_mask=True
         )
         # TODO: nn.parallel or ddp??
         model.to(device)

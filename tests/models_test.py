@@ -2,7 +2,8 @@ from collections import Counter
 from mini_nlp_framework.data import Vocab
 from mini_nlp_framework.layers import EmbeddingsSource, NormType
 from mini_nlp_framework.models import (
-    LinearClassifierFlattened, RNNClassifierFlattened, RNNClassifierMulti, SemiTransformerClfFlattened, 
+    ClassificationHeadMultiArch, ClassificationHeadSingleArch, LinearClassifierFlattened, RNNBackboneArch, 
+    RNNClassifierFlattened, RNNClassifierMulti, SemiTransformerBackboneArch, SemiTransformerClfFlattened, 
     SemiTransformerClfMulti
 )
 from mini_nlp_framework.torch_utils import get_layers_of_type
@@ -20,14 +21,18 @@ def test_lin_clf_flattened(n_classes, emb_source):
     max_seq_len = 8
     emb_drop = 0.3
     lin_drop = 0.51
-    simple_model = LinearClassifierFlattened(vocab, n_classes, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop)
+    simple_model = LinearClassifierFlattened(
+        vocab, n_classes, max_seq_len, emb_source, emb_drop=emb_drop,
+        head_arch=ClassificationHeadSingleArch(p_drop=lin_drop),
+    )
     n_simple_model_lin_layers = len(list(get_layers_of_type(simple_model, nn.Linear)))
     n_simple_model_lin_layers_in_emb = len(list(get_layers_of_type(simple_model.embedding, nn.Linear)))
     simple_model_dropout_layers = get_layers_of_type(simple_model, nn.Dropout)
     simple_model_dropout_ps_count = Counter(l.p for l in simple_model_dropout_layers)
 
     two_steps_lin_model = LinearClassifierFlattened(
-        vocab, n_classes, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, two_steps_lin=True
+        vocab, n_classes, max_seq_len, emb_source, emb_drop=emb_drop, 
+        head_arch=ClassificationHeadSingleArch(p_drop=lin_drop, two_steps_lin=True),
     )
     n_two_steps_lin_model_lin_layers = len(list(get_layers_of_type(two_steps_lin_model, nn.Linear)))
     n_two_steps_lin_model_lin_layers_in_emb = len(list(get_layers_of_type(two_steps_lin_model.embedding, nn.Linear)))
@@ -35,7 +40,8 @@ def test_lin_clf_flattened(n_classes, emb_source):
     two_steps_lin_model_dropout_ps_count = Counter(l.p for l in two_steps_lin_model_dropout_layers)
 
     two_resblocks_model = LinearClassifierFlattened(
-        vocab, n_classes, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, res_blocks_ftrs=[4, 1]
+        vocab, n_classes, max_seq_len, emb_source, emb_drop=emb_drop, 
+        head_arch=ClassificationHeadSingleArch(p_drop=lin_drop, res_blocks_ftrs=[4, 1]),
     )
     two_resblocks_model_dropout_layers = list(get_layers_of_type(two_resblocks_model, nn.Dropout))
     two_resblocks_model_head_dropout_layers = list(get_layers_of_type(two_resblocks_model.clf, nn.Dropout))
@@ -99,7 +105,8 @@ def test_rnn_clf_flattened(n_classes, emb_source):
     rnn_drop = 0.111
     lin_drop = 0.311
     simple_model = RNNClassifierFlattened(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, rnn_drop=rnn_drop
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, emb_drop=emb_drop, rnn_drop=rnn_drop),
+        ClassificationHeadSingleArch(p_drop=lin_drop)
     )
     n_simple_model_lin_layers = len(list(get_layers_of_type(simple_model, nn.Linear)))
     n_simple_model_lin_layers_in_emb = len(list(get_layers_of_type(simple_model.embedding, nn.Linear)))
@@ -107,8 +114,8 @@ def test_rnn_clf_flattened(n_classes, emb_source):
     simple_model_dropout_ps_count = Counter(l.p for l in simple_model_dropout_layers)
 
     two_steps_lin_model = RNNClassifierFlattened(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, 
-        rnn_drop=rnn_drop, two_steps_lin=True
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, emb_drop=emb_drop, rnn_drop=rnn_drop),
+        ClassificationHeadSingleArch(p_drop=lin_drop, two_steps_lin=True)
     )
     n_two_steps_lin_model_lin_layers = len(list(get_layers_of_type(two_steps_lin_model, nn.Linear)))
     n_two_steps_lin_model_lin_layers_in_emb = len(list(get_layers_of_type(two_steps_lin_model.embedding, nn.Linear)))
@@ -116,8 +123,8 @@ def test_rnn_clf_flattened(n_classes, emb_source):
     two_steps_lin_model_dropout_ps_count = Counter(l.p for l in two_steps_lin_model_dropout_layers)
 
     two_resblocks_model = RNNClassifierFlattened(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, 
-        rnn_drop=rnn_drop, res_blocks_ftrs=[4, 1]
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, emb_drop=emb_drop, rnn_drop=rnn_drop),
+        ClassificationHeadSingleArch(p_drop=lin_drop, res_blocks_ftrs=[4, 1])
     )
     n_two_resblocks_model_lin_layers = len(list(get_layers_of_type(two_resblocks_model, nn.Linear)))
     n_two_resblocks_model_lin_layers_in_emb = len(list(get_layers_of_type(two_resblocks_model.embedding, nn.Linear)))
@@ -126,7 +133,8 @@ def test_rnn_clf_flattened(n_classes, emb_source):
     two_resblocks_model_dropout_ps_count = Counter(l.p for l in two_resblocks_model_dropout_layers)
 
     lstm_model = RNNClassifierFlattened(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, rnn_cls=nn.LSTM, emb_drop=emb_drop, lin_drop=lin_drop
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, rnn_cls=nn.LSTM, emb_drop=emb_drop),
+        ClassificationHeadSingleArch(p_drop=lin_drop)
     )
 
     inp = torch.tensor([
@@ -188,7 +196,8 @@ def test_rnn_clf_multi(n_classes, emb_source):
     rnn_drop = 0.171
     lin_drop = 0.391
     simple_model = RNNClassifierMulti(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, rnn_drop=rnn_drop
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, emb_drop=emb_drop, rnn_drop=rnn_drop),
+        ClassificationHeadMultiArch(p_drop=lin_drop)
     )
     n_simple_model_lin_layers = len(list(get_layers_of_type(simple_model, nn.Linear)))
     n_simple_model_lin_layers_in_emb = len(list(get_layers_of_type(simple_model.embedding, nn.Linear)))
@@ -196,13 +205,13 @@ def test_rnn_clf_multi(n_classes, emb_source):
     simple_model_dropout_ps_count = Counter(l.p for l in simple_model_dropout_layers)
 
     ln_model = RNNClassifierMulti(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, 
-        rnn_drop=rnn_drop, norm_type=NormType.Layer
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, emb_drop=emb_drop, rnn_drop=rnn_drop),
+        ClassificationHeadMultiArch(p_drop=lin_drop), norm_type=NormType.Layer
     )
 
     two_resblocks_model = RNNClassifierMulti(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, 
-        rnn_drop=rnn_drop, res_blocks_ftrs=[4, 1]
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, emb_drop=emb_drop, rnn_drop=rnn_drop),
+        ClassificationHeadMultiArch(p_drop=lin_drop, res_blocks_ftrs=[4, 1])
     )
     n_two_resblocks_model_lin_layers = len(list(get_layers_of_type(two_resblocks_model, nn.Linear)))
     n_two_resblocks_model_lin_layers_in_emb = len(list(get_layers_of_type(two_resblocks_model.embedding, nn.Linear)))
@@ -211,12 +220,14 @@ def test_rnn_clf_multi(n_classes, emb_source):
     two_resblocks_model_dropout_ps_count = Counter(l.p for l in two_resblocks_model_dropout_layers)
 
     lstm_model = RNNClassifierMulti(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, rnn_cls=nn.LSTM, emb_drop=emb_drop, lin_drop=lin_drop
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, rnn_cls=nn.LSTM, emb_drop=emb_drop),
+        ClassificationHeadMultiArch(p_drop=lin_drop)
     )
 
     expected_out_ftrs = 1 if n_classes <= 2 else n_classes
     weight_tied_model = RNNClassifierMulti(
-        vocab, n_classes, hidden_ftrs, max_seq_len, emb_source, emb_drop=emb_drop, lin_drop=lin_drop, weight_tying=True
+        vocab, n_classes, hidden_ftrs, max_seq_len, RNNBackboneArch(emb_source, emb_drop=emb_drop),
+        ClassificationHeadMultiArch(p_drop=lin_drop), weight_tying=True
     )
     weight_tied_model_last_lin = next(
         l for l in get_layers_of_type(weight_tied_model, nn.Linear) if l.out_features == expected_out_ftrs
@@ -286,8 +297,14 @@ def test_semitfm_clf_flattened(n_classes, emb_source):
     tfm_drop = 0.104
     lin_drop = 0.304
     simple_model = SemiTransformerClfFlattened(
-        vocab, n_classes, max_seq_len, emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,  
-        emb_drop=emb_drop, tfm_drop=tfm_drop, lin_drop=lin_drop
+        vocab, 
+        n_classes, 
+        max_seq_len, 
+        SemiTransformerBackboneArch(
+            emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, emb_drop=emb_drop, 
+            tfm_drop=tfm_drop
+        ),
+        ClassificationHeadSingleArch(p_drop=lin_drop)
     )
     simple_model_lin_layers = list(get_layers_of_type(simple_model, nn.Linear))
     n_simple_model_lin_layers_in_emb = len(list(get_layers_of_type(simple_model.embedding, nn.Linear)))
@@ -297,8 +314,14 @@ def test_semitfm_clf_flattened(n_classes, emb_source):
     simple_model_lin_layers_ftrs_count = Counter(l.out_features for l in simple_model_lin_layers)
 
     two_steps_lin_model = SemiTransformerClfFlattened(
-        vocab, n_classes, max_seq_len, emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,  
-        emb_drop=emb_drop, tfm_drop=tfm_drop, lin_drop=lin_drop, two_steps_lin=True
+        vocab, 
+        n_classes, 
+        max_seq_len, 
+        SemiTransformerBackboneArch(
+            emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, emb_drop=emb_drop, 
+            tfm_drop=tfm_drop
+        ),
+        ClassificationHeadSingleArch(p_drop=lin_drop, two_steps_lin=True),
     )
     two_steps_lin_model_lin_layers = list(get_layers_of_type(two_steps_lin_model, nn.Linear))
     n_two_steps_lin_model_lin_layers_in_emb = len(list(get_layers_of_type(two_steps_lin_model.embedding, nn.Linear)))
@@ -306,8 +329,14 @@ def test_semitfm_clf_flattened(n_classes, emb_source):
     two_steps_lin_model_dropout_ps_count = Counter(l.p for l in two_steps_lin_model_dropout_layers)
 
     two_resblocks_model = SemiTransformerClfFlattened(
-        vocab, n_classes, max_seq_len, emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,  
-        emb_drop=emb_drop, tfm_drop=tfm_drop, lin_drop=lin_drop, res_blocks_ftrs=[4, 1]
+        vocab, 
+        n_classes, 
+        max_seq_len, 
+        SemiTransformerBackboneArch(
+            emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, emb_drop=emb_drop, 
+            tfm_drop=tfm_drop
+        ),
+        ClassificationHeadSingleArch(p_drop=lin_drop, res_blocks_ftrs=[4, 1]),
     )
     two_resblocks_model_lin_layers = list(get_layers_of_type(two_resblocks_model, nn.Linear))
     n_two_resblocks_model_lin_layers_in_emb = len(list(get_layers_of_type(two_resblocks_model.embedding, nn.Linear)))
@@ -315,8 +344,15 @@ def test_semitfm_clf_flattened(n_classes, emb_source):
     two_resblocks_model_dropout_ps_count = Counter(l.p for l in two_resblocks_model_dropout_layers)
 
     causal_model = SemiTransformerClfFlattened(
-        vocab, n_classes, max_seq_len, emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,  
-        emb_drop=emb_drop, tfm_drop=tfm_drop, lin_drop=lin_drop, use_causal_mask=True
+        vocab, 
+        n_classes, 
+        max_seq_len, 
+        SemiTransformerBackboneArch(
+            emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, emb_drop=emb_drop, 
+            tfm_drop=tfm_drop
+        ),
+        ClassificationHeadSingleArch(p_drop=lin_drop), 
+        use_causal_mask=True
     )
 
     inp = torch.tensor([
@@ -378,8 +414,14 @@ def test_semitfm_clf_multi(n_classes, emb_source):
     tfm_drop = 0.105
     lin_drop = 0.305
     simple_model = SemiTransformerClfMulti(
-        vocab, n_classes, max_seq_len, emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,  
-        emb_drop=emb_drop, tfm_drop=tfm_drop, lin_drop=lin_drop
+        vocab, 
+        n_classes, 
+        max_seq_len, 
+        SemiTransformerBackboneArch(
+            emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, emb_drop=emb_drop, 
+            tfm_drop=tfm_drop,
+        ),
+        ClassificationHeadMultiArch(p_drop=lin_drop),
     )
     simple_model_lin_layers = list(get_layers_of_type(simple_model, nn.Linear))
     n_simple_model_lin_layers_in_emb = len(list(get_layers_of_type(simple_model.embedding, nn.Linear)))
@@ -389,8 +431,14 @@ def test_semitfm_clf_multi(n_classes, emb_source):
     simple_model_lin_layers_ftrs_count = Counter(l.out_features for l in simple_model_lin_layers)
 
     two_resblocks_model = SemiTransformerClfMulti(
-        vocab, n_classes, max_seq_len, emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,  
-        emb_drop=emb_drop, tfm_drop=tfm_drop, lin_drop=lin_drop, res_blocks_ftrs=[4, 1]
+        vocab, 
+        n_classes, 
+        max_seq_len, 
+        SemiTransformerBackboneArch(
+            emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, emb_drop=emb_drop, 
+            tfm_drop=tfm_drop
+        ),
+        ClassificationHeadMultiArch(p_drop=lin_drop, res_blocks_ftrs=[4, 1]),
     )
     two_resblocks_model_lin_layers = list(get_layers_of_type(two_resblocks_model, nn.Linear))
     n_two_resblocks_model_lin_layers_in_emb = len(list(get_layers_of_type(two_resblocks_model.embedding, nn.Linear)))
@@ -398,8 +446,15 @@ def test_semitfm_clf_multi(n_classes, emb_source):
     two_resblocks_model_dropout_ps_count = Counter(l.p for l in two_resblocks_model_dropout_layers)
 
     causal_model = SemiTransformerClfMulti(
-        vocab, n_classes, max_seq_len, emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs,  
-        emb_drop=emb_drop, tfm_drop=tfm_drop, lin_drop=lin_drop, use_causal_mask=True
+        vocab, 
+        n_classes, 
+        max_seq_len, 
+        SemiTransformerBackboneArch(
+            emb_source, n_heads=n_heads, n_layers=n_layers, tfm_mlp_ftrs=tfm_mlp_ftrs, emb_drop=emb_drop, 
+            tfm_drop=tfm_drop
+        ), 
+        ClassificationHeadMultiArch(p_drop=lin_drop), 
+        use_causal_mask=True,
     )
 
     inp = torch.tensor([
