@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import warnings
-from mini_nlp_framework.data import Vocab
+from mini_nlp_framework.data import EmbeddingsSource, spacy_pipeline_cache, Vocab
 from mini_nlp_framework.misc import ProgressTracker
 import spacy
 import torch
@@ -11,26 +11,6 @@ from transformers import DistilBertModel
 from typing import Callable, Optional
 
 
-class SpacyPipelineCache:
-    "Cache of spacy pipelines that can be queried by name"
-    def __init__(self):
-        self.cache = dict()
-
-    def get(self, name:str):
-        pipeline = self.cache.get(name, None)
-        if pipeline is None:
-            try:
-                pipeline = spacy.load(name)
-            except OSError:
-                spacy.cli.download(name)
-                pipeline = spacy.load(name)
-            self.cache[name] = pipeline
-        return pipeline
-
-
-spacy_pipeline_cache = SpacyPipelineCache()
-
-
 class Lambda(nn.Module):
     def __init__(self, func:Callable[[torch.Tensor], torch.Tensor]):
         super().__init__()
@@ -38,12 +18,6 @@ class Lambda(nn.Module):
 
     def forward(self, x):
         return self.func(x)
-
-
-class EmbeddingsSource(Enum):
-    Std = 0
-    Spacy = 1
-    DistilBert = 2
 
 
 class BaseEmbedding(nn.Module):
@@ -73,10 +47,6 @@ class BaseEmbedding(nn.Module):
     def out_ftrs(self) -> int:
         "Child classes must return the output size of the embeddings, i.e., the size of each 1d embedding vector."
 
-    
-
-    # def forward(self, x):
-    #     return self.embedding(x)
 
 class StdEmbedding(BaseEmbedding):
     """

@@ -1,6 +1,6 @@
 from collections import Counter
-from mini_nlp_framework.data import Vocab
-from mini_nlp_framework.layers import EmbeddingsSource, NormType
+from mini_nlp_framework.data import EmbeddingsSource, Vocab
+from mini_nlp_framework.layers import NormType
 from mini_nlp_framework.models import (
     ClassificationHeadMultiArch, ClassificationHeadSingleArch, LinearClassifierFlattened, RNNBackboneArch, 
     RNNClassifierFlattened, RNNClassifierMulti, SemiTransformerBackboneArch, SemiTransformerClfFlattened, 
