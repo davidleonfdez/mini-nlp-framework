@@ -1,12 +1,11 @@
 from mini_nlp_framework.data import DataLoaders
 from mini_nlp_framework.train import TrainingStats
-from mini_nlp_framework.validate import cross_validate
+from mini_nlp_framework.validate import CrossValidationStats, cross_validate
 import numpy as np
-from testing_utils import BiasHyperParameters, BiasModelProvider, FakeTrainer
+import os
+from testing_utils import BiasHyperParameters, BiasModel, BiasModelProvider, FakeMetric, FakeTrainer
 import torch
 import torch.nn as nn
-
-from tests.testing_utils import BiasModel
 
 
 def _dls_to_array(dls:DataLoaders):
@@ -29,7 +28,7 @@ def test_cross_validate():
     bs = 2
     bias_init = -19
     model_provider = BiasModelProvider(bias_init=bias_init)
-    def fake_metric(*args, **kwargs): return 0
+    fake_metric = FakeMetric()
     hp = BiasHyperParameters(lr=5e-5, wd=0.1)
     device='cpu'
     fake_train_return_args = [
@@ -78,10 +77,11 @@ def test_cross_validate():
     ##################################
     # A) test without sequence lengths
     ##################################
-    stats_by_fold = cross_validate(
+    cv_stats = cross_validate(
         model_provider, X, y, None, nfolds=n_folds, train_length=train_length, bs=bs, trainer=trainer, 
         metric=fake_metric, hp=hp, device=device,
     )
+    stats_by_fold = cv_stats.stats_by_fold
     call_args_train_len, call_args_model, call_args_dls, call_args_loss_func, call_args_opt = zip(*trainer.call_args)
     x_train_fold_0, x_valid_fold_0, y_train_fold_0, y_valid_fold_0 = _dls_to_array(call_args_dls[0])
     x_train_fold_1, x_valid_fold_1, y_train_fold_1, y_valid_fold_1 = _dls_to_array(call_args_dls[1])
@@ -127,10 +127,11 @@ def test_cross_validate():
     ###############################
     trainer = FakeTrainer(fake_train_return_args, update_params)
     model_provider = BiasModelProvider()
-    stats_by_fold = cross_validate(
+    cv_stats = cross_validate(
         model_provider, X, y, seq_lengths, nfolds=n_folds, train_length=train_length, bs=bs, trainer=trainer, 
         metric=fake_metric, hp=hp, device=device,
     )
+    stats_by_fold = cv_stats.stats_by_fold
     call_args_dls = [call_args_fold_i[2] for call_args_fold_i in trainer.call_args]
     x_train_fold_0, x_valid_fold_0, y_train_fold_0, y_valid_fold_0, sl_train_fold_0, sl_valid_fold_0 = _dls_to_array(call_args_dls[0])
     x_train_fold_1, x_valid_fold_1, y_train_fold_1, y_valid_fold_1, sl_train_fold_1, sl_valid_fold_1 = _dls_to_array(call_args_dls[1])
@@ -164,3 +165,46 @@ def test_cross_validate():
     assert np.array_equal(x_valid_fold_3, expected_x_valid_fold_3)
     assert np.array_equal(y_valid_fold_3, expected_y_valid_fold_3)
     assert np.array_equal(sl_valid_fold_3, expected_sl_valid_fold_3)
+
+
+def test_cross_validation_stats():
+    stats_by_fold = [
+        TrainingStats(
+            np.random.rand(5),
+            np.random.rand(5),
+            np.array([1., 1.5, 0.5, 2.5, 0.75]),
+            5,
+            10
+        ),
+        TrainingStats(
+            np.random.rand(5),
+            np.random.rand(5),
+            np.array([5., 6., 7., 8., 9.]),
+            5,
+            10
+        ),
+        TrainingStats(
+            np.random.rand(5),
+            np.random.rand(5),
+            np.array([1.5, 2., 3.5, 1., 0.5]),
+            5,
+            10
+        ),
+    ]
+    stats_lower_better = CrossValidationStats(stats_by_fold, metric_lower_is_better=True)
+    stats_higher_better = CrossValidationStats(stats_by_fold, metric_lower_is_better=False)
+
+    assert stats_lower_better.best_metric_and_epoch_by_fold == [(0.5, 2), (5., 0), (0.5, 4)]
+    assert stats_lower_better.avg_best_metric_and_epoch == (2., 2.)
+    assert stats_higher_better.best_metric_and_epoch_by_fold == [(2.5, 3), (9, 4), (3.5, 2)]
+    assert stats_higher_better.avg_best_metric_and_epoch == (5., 3.)
+    expected_str = os.linesep.join([
+        "--- Cross validation statistics ---",
+        "Average of best metric by fold: 5.0",
+        "Average epoch of best metric by fold: 3.0",
+        "Best metric by fold:",
+        "    Fold 0: 2.5 @ epoch 3",
+        "    Fold 1: 9.0 @ epoch 4",
+        "    Fold 2: 3.5 @ epoch 2"
+    ])
+    assert str(stats_higher_better) == expected_str

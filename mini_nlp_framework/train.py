@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from mini_nlp_framework.data import DataLoaders
 from mini_nlp_framework.losses import LossFunction
+from mini_nlp_framework.metrics import Metric
 import numpy as np
 import torch
 import torch.nn as nn
@@ -21,9 +22,9 @@ class EpochTrainingStats:
 
 @dataclass
 class TrainingStats:
-    train_loss_history:np.array
-    train_metric_history:np.array
-    valid_metric_history:np.array
+    train_loss_history:np.ndarray
+    train_metric_history:np.ndarray
+    valid_metric_history:np.ndarray
     n_epochs:int
     n_steps:int
 
@@ -141,7 +142,7 @@ class TrainingCallback(ABC):
 
 def train(
     train_length:Union[int, TrainLength], model:nn.Module, dls:DataLoaders, loss_func:LossFunction, 
-    opt:torch.optim.Optimizer, sched=None, metric:Optional[Callable[[nn.Module, DataLoader, Callable], float]]=None, 
+    opt:torch.optim.Optimizer, sched=None, metric:Optional[Metric]=None, 
     device=None, clip_grad:ClipGradOptions=None, callbacks:List[TrainingCallback]=None
 ) -> TrainingStats:
     """
@@ -254,7 +255,7 @@ class BaseTrainer(ABC):
         loss_func:LossFunction, 
         opt:torch.optim.Optimizer, 
         sched=None, 
-        metric:Optional[Callable[[nn.Module, DataLoader, Callable], float]]=None,
+        metric:Optional[Metric]=None,
         device=None, 
         clip_grad:ClipGradOptions=None, 
         callbacks:List[TrainingCallback]=None
@@ -271,7 +272,7 @@ class DefaultTrainer(BaseTrainer):
         loss_func:LossFunction, 
         opt:torch.optim.Optimizer, 
         sched=None, 
-        metric:Optional[Callable[[nn.Module, DataLoader, Callable], float]]=None,
+        metric:Optional[Metric]=None,
         device=None, 
         clip_grad:ClipGradOptions=None, 
         callbacks:List[TrainingCallback]=None

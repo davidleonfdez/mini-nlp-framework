@@ -92,7 +92,7 @@ class SpacyPipelineCache:
 spacy_pipeline_cache = SpacyPipelineCache()
 
 
-def get_kfolds(X:np.array, y:np.array, seq_lengths:Union[List[int], np.array]=None, n:int=3):
+def get_kfolds(X:np.ndarray, y:np.ndarray, seq_lengths:Union[List[int], np.ndarray]=None, n:int=3):
     kf = KFold(n_splits=n, random_state=None, shuffle=False)
     splits = []
     if isinstance(seq_lengths, list): seq_lengths = np.array(seq_lengths)
@@ -128,7 +128,7 @@ def pad(sequences:List[List[str]], max_len:int, pad_idx:int):
 
 @dataclass
 class TextEncodingResult:
-    X_padded:np.array
+    X_padded:np.ndarray
     vocab:Vocab
     seq_lengths:List[int]
 

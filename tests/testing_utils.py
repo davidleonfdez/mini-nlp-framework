@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from mini_nlp_framework.losses import LossFunction
+from mini_nlp_framework.metrics import Metric
 from mini_nlp_framework.models import BaseModelProvider
 from mini_nlp_framework.train import BaseTrainer
 from mini_nlp_framework.torch_utils import get_best_available_device
@@ -56,3 +57,10 @@ class FakeTrainer(BaseTrainer):
         model = args[1]
         self.update_params_fn(model)
         return self.train_return_args_by_call[call_idx]
+
+
+class FakeMetric(Metric):
+    def __call__(*args, **kwargs): return 0
+
+    def lower_is_better(self) -> bool:
+        return False
