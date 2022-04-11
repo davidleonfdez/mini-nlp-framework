@@ -507,6 +507,8 @@ class ClfHyperParameters:
 
 
 class QuickClassifierProvider(BaseModelProvider):
+    embedding_source=EmbeddingsSource.Spacy
+
     def __init__(self, vocab:Vocab, max_seq_len:int, n_classes:int):
         self.vocab = vocab
         self.max_seq_len = max_seq_len
@@ -516,7 +518,7 @@ class QuickClassifierProvider(BaseModelProvider):
         if hp is None: hp = ClfHyperParameters()
         if device is None: device = get_best_available_device()
         model = LinearClassifierFlattened(
-            self.vocab, self.n_classes, self.max_seq_len, EmbeddingsSource.Spacy, emb_drop=0.15,
+            self.vocab, self.n_classes, self.max_seq_len, self.embedding_source, emb_drop=0.15,
         )
         model.to(device)
         embedding_params = model.embedding.parameters()
@@ -540,6 +542,8 @@ class LMHyperParameters:
 
 class CustomLanguageModelProvider(BaseModelProvider):
     "Provider of objects needed to train a causal language model"
+    embedding_source=EmbeddingsSource.Spacy
+
     def __init__(self, vocab:Vocab, max_seq_len:int):
         self.vocab = vocab
         self.max_seq_len = max_seq_len
@@ -552,7 +556,7 @@ class CustomLanguageModelProvider(BaseModelProvider):
             self.vocab, 
             n_classes, 
             self.max_seq_len,
-            SemiTransformerBackboneArch(EmbeddingsSource.Spacy, n_heads=3, emb_drop=0.2, tfm_drop=0.2),
+            SemiTransformerBackboneArch(self.embedding_source, n_heads=3, emb_drop=0.2, tfm_drop=0.2),
             use_causal_mask=True
         )
         # TODO: nn.parallel or ddp??

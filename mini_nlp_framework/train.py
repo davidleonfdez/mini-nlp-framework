@@ -3,13 +3,12 @@ from dataclasses import dataclass
 from mini_nlp_framework.data import DataLoaders
 from mini_nlp_framework.losses import LossFunction
 from mini_nlp_framework.metrics import Metric
+from mini_nlp_framework.torch_utils import get_best_available_device
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from typing import Callable, Iterable, List, Optional, Union
-
-from mini_nlp_framework.torch_utils import get_best_available_device
 
 
 @dataclass
