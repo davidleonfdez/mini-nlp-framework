@@ -10,6 +10,16 @@ from torch.optim import Optimizer
 from typing import Callable, List, Tuple
 
 
+class ModClassifier(nn.Module):
+    "Module that returns the sum of input along its last dimension modulo the number of classes"
+    def __init__(self, n_classes=2):
+        super().__init__()
+        self.n_classes = n_classes
+    
+    def forward(self, x):
+        return x.sum(dim=-1) % self.n_classes
+
+
 class BiasModel(nn.Module):
     "Module that returns the input plus a scalar parameter `a`."
     def __init__(self, a_init:float=10):
