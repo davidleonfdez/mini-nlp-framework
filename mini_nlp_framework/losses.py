@@ -6,7 +6,7 @@ from typing import Callable, List
 LossFunction = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
-def flat_cross_entropy_loss(preds, target, ignore_index=0):
+def flat_cross_entropy_loss(preds, target, ignore_index=-100):
     #return F.cross_entropy(preds.view(-1, len(vocab.idx_to_word)), target.view(-1),
     return F.cross_entropy(preds.view(-1, preds.shape[-1]), target.view(-1),
                            ignore_index=ignore_index)

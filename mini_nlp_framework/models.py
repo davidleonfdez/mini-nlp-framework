@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import partial
 from mini_nlp_framework.data import EmbeddingsSource, Vocab
 from mini_nlp_framework.layers import (
     apply_norm, BaseEmbedding, get_embedding, get_norm, Lambda, LinResBlock, PositionalEmbedding, NormType
@@ -573,6 +574,6 @@ class CustomLanguageModelProvider(BaseModelProvider):
             {'params': embedding_params, 'lr': hp.embedding_lr},
             {'params': pos_emb_params, 'lr': hp.lr}
         ], lr=hp.lr, weight_decay=hp.wd, betas=hp.adam_betas)
-        loss = flat_cross_entropy_loss
+        loss = partial(flat_cross_entropy_loss, ignore_index=self.vocab.pad_idx)
         #loss = ComposedLoss(flat_cross_entropy_loss, EmbeddingLoss(nn.MSELoss(), model.embedding))
         return model, opt, loss
