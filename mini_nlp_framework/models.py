@@ -36,9 +36,10 @@ class ClassificationHeadSingle(nn.Module):
             two_steps_lin: make the final linear transformation in two steps, with ReLU+dropout in between. This can 
                 provide stability.
     """
-    def __init__(self, in_ftrs:int, n_classes:int, max_seq_len:int, arch:ClassificationHeadSingleArch):
+    def __init__(self, in_ftrs:int, n_classes:int, max_seq_len:int, arch:Optional[ClassificationHeadSingleArch]=None):
         super().__init__()
         out_ftrs = 1 if n_classes <= 2 else n_classes
+        if arch is None: arch = ClassificationHeadSingleArch()
         if arch.res_blocks_ftrs is None: arch.res_blocks_ftrs = []
         arch.res_blocks_ftrs.insert(0, 1)
         def _rb_drop_value(i):
@@ -107,6 +108,7 @@ class ClassificationHeadMulti(nn.Module):
     def __init__(self, in_ftrs:int, n_classes:int, arch:Optional[ClassificationHeadMultiArch]=None):
         super().__init__()
         self.out_ftrs = 1 if n_classes <= 2 else n_classes
+        if arch is None: arch = ClassificationHeadMultiArch()
         if arch.res_blocks_ftrs is None: arch.res_blocks_ftrs = []
         arch.res_blocks_ftrs.insert(0, 1)
         def _rb_drop_value(i):
@@ -408,7 +410,7 @@ class SemiTransformerClfFlattened(nn.Module):
     """
     def __init__(
             self, vocab, n_classes, max_seq_len:int, backbone_arch:SemiTransformerBackboneArch, 
-            head_arch:Optional[ClassificationHeadSingleArch], use_causal_mask=False, **tfm_enc_kwargs
+            head_arch:Optional[ClassificationHeadSingleArch]=None, use_causal_mask=False, **tfm_enc_kwargs
         ):
         super().__init__()
         self.backbone = SemiTransformerBackbone(
