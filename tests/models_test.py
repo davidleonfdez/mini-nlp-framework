@@ -2,14 +2,25 @@ from collections import Counter
 from mini_nlp_framework.data import EmbeddingsSource, Vocab
 from mini_nlp_framework.layers import NormType
 from mini_nlp_framework.models import (
-    ClassificationHeadMultiArch, ClassificationHeadSingleArch, LinearClassifierFlattened, RNNBackboneArch, 
-    RNNClassifierFlattened, RNNClassifierMulti, SemiTransformerBackboneArch, SemiTransformerClfFlattened, 
+    ClassificationHeadMultiArch, 
+    ClassificationHeadSingleArch,
+    ClfHyperParameters, 
+    CustomLanguageModelProvider,
+    LMHyperParameters,
+    LinearClassifierFlattened,
+    QuickClassifierProvider,
+    RNNBackboneArch, 
+    RNNClassifierFlattened, 
+    RNNClassifierMulti, 
+    SemiTransformerBackboneArch, 
+    SemiTransformerClfFlattened, 
     SemiTransformerClfMulti
 )
 from mini_nlp_framework.torch_utils import get_layers_of_type
 import pytest
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 @pytest.mark.parametrize("n_classes", [2, 3])
@@ -493,3 +504,93 @@ def test_semitfm_clf_multi(n_classes, emb_source):
 @pytest.mark.parametrize("emb_source", [EmbeddingsSource.Spacy, EmbeddingsSource.DistilBert])
 def test_semitfm_clf_multi_integration(n_classes, emb_source):
     test_semitfm_clf_multi(n_classes, emb_source)
+
+
+@pytest.mark.slow
+def test_quick_classifier_provider():
+    idx_to_word = ['a', 'b', 'c', 'd', 'e']
+    word_to_idx = {word: idx for idx, word in enumerate(idx_to_word)}
+    vocab = Vocab(word_to_idx, idx_to_word)
+    n_classes = 3
+    max_seq_len = 10
+    model_provider = QuickClassifierProvider(vocab, max_seq_len, n_classes)
+    lr = 2e-3
+    embedding_lr = 3e-5
+    wd = 0.02
+    adam_betas = (0.4, 0.8)
+    hp = ClfHyperParameters(lr=lr, embedding_lr=embedding_lr, adam_betas=adam_betas, wd=wd)
+    model, opt, loss = model_provider.create(hp=hp)
+
+    embedding_first_param = next(model.embedding.parameters())
+    embedding_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is embedding_first_param)
+    clf_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is not embedding_first_param)
+
+    assert model(torch.randint(0, len(vocab), size=(4, max_seq_len))).shape == (4, n_classes)
+    assert all(pg['weight_decay'] == wd for pg in opt.param_groups)
+    assert all(pg['betas'] == adam_betas for pg in opt.param_groups)
+    assert embedding_param_group['lr'] == embedding_lr
+    assert clf_param_group['lr'] == lr
+
+    loss_in_logits = torch.tensor([
+        [0.5, 0.2, 0.1],
+        [-0.5, 0.2, 0.1],
+        [-0.5, -0.2, 0.1],
+        [0.5, 0.2, 0.1],
+    ])
+    loss_in_labels = torch.tensor([0, 0, 2, 2])
+    assert loss(loss_in_logits, loss_in_labels) == F.cross_entropy(loss_in_logits, loss_in_labels)
+
+    binary_model_provider = QuickClassifierProvider(vocab, max_seq_len, 2)
+    binary_model, opt, loss = binary_model_provider.create(hp=hp)
+
+    assert binary_model(torch.randint(0, len(vocab), size=(4, max_seq_len))).shape == (4, 1)
+    loss_in_logits = torch.tensor([
+        [-0.3],
+        [0.4],
+        [-0.5],
+        [0.2],
+        [0.1],
+    ])
+    loss_in_labels = torch.tensor([0., 0, 1, 1, 1])
+    assert loss(loss_in_logits, loss_in_labels) == F.binary_cross_entropy_with_logits(loss_in_logits.view(-1), loss_in_labels)
+
+
+@pytest.mark.slow
+def test_custom_language_model_provider():
+    idx_to_word = ['a', 'b', 'c', 'd', 'e', 'f']
+    word_to_idx = {word: idx for idx, word in enumerate(idx_to_word)}
+    pad_idx = 2
+    vocab = Vocab(word_to_idx, idx_to_word, pad_idx=pad_idx)
+    max_seq_len = 10
+    model_provider = CustomLanguageModelProvider(vocab, max_seq_len)
+    lr = 3e-3
+    transformer_lr = 6e-5
+    embedding_lr = 4e-5
+    wd = 0.025
+    adam_betas = (0.35, 0.85)
+    hp = LMHyperParameters(lr=lr, transformer_lr=transformer_lr, embedding_lr=embedding_lr, adam_betas=adam_betas, wd=wd)
+    model, opt, loss = model_provider.create(hp=hp)
+
+    embedding_first_param = next(model.embedding.parameters())
+    embedding_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is embedding_first_param)
+    clf_first_param = next(model.clf.parameters())
+    clf_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is clf_first_param)
+    tfm_first_param = next(model.backbone.encoder.parameters())
+    tfm_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is tfm_first_param)
+    n_model_params = sum(1 for p in model.parameters())
+    n_opt_params = sum(len(pg['params']) for pg in opt.param_groups)
+
+    seq_lengths = torch.tensor([max_seq_len, max_seq_len//2, max_seq_len//2])
+    assert model(torch.randint(0, len(vocab), size=(3, max_seq_len)), seq_lengths).shape == (3, max_seq_len, len(vocab))
+    assert all(pg['weight_decay'] == wd for pg in opt.param_groups)
+    assert all(pg['betas'] == adam_betas for pg in opt.param_groups)
+    assert embedding_param_group['lr'] == embedding_lr
+    assert clf_param_group['lr'] == lr
+    assert tfm_param_group['lr'] == transformer_lr
+    assert n_model_params == n_opt_params
+
+    bs = 6
+    loss_in_logits = torch.rand(bs, max_seq_len, len(vocab)).view(-1, len(vocab))
+    loss_in_labels = torch.randint(0, len(vocab), size=(bs, max_seq_len)).view(-1)
+    loss_in_labels[-1] = pad_idx
+    assert loss(loss_in_logits, loss_in_labels) == F.cross_entropy(loss_in_logits, loss_in_labels, ignore_index=pad_idx)
