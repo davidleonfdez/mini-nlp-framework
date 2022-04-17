@@ -130,11 +130,9 @@ class TrainLengthOr(TrainLength):
 
 
 class TrainingCallback(ABC):
-    @abstractmethod
     def on_step_end(self, tr_loss:torch.Tensor, model:nn.Module, opt:torch.optim.Optimizer):
         pass
 
-    @abstractmethod
     def on_epoch_end(self, stats:EpochTrainingStats, model:nn.Module, opt:torch.optim.Optimizer):
         pass
 
