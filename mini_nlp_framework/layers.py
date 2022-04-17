@@ -116,11 +116,12 @@ class SpacyEmbedding(BaseEmbedding):
         self._embedding = nn.Embedding.from_pretrained(torch.Tensor(embeddings), freeze=False)
         layers = [
              # If conversion is not needed, Tensor.long() does nothing
-            Lambda(lambda x: x.long()),           
+            Lambda(lambda x: x.long()),
+            self._embedding,
         ]
         if add_pos_emb:
             layers.append(PositionalEmbedding(self._embedding.embedding_dim, max_seq_len))
-        layers.extend([self._embedding, nn.Dropout(p_drop)])
+        layers.append(nn.Dropout(p_drop))
         self.layers = nn.Sequential(*layers)
 
     @property
