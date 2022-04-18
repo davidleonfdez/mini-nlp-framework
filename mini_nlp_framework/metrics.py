@@ -8,10 +8,10 @@ from typing import Callable
 
 
 def metric_lower_is_better(metric_fn:Callable):
-    if metric_fn in (accuracy_score,):
+    if metric_fn in (accuracy_score, f1_score):
         return False
-    if metric_fn in (f1_score,):
-        return True
+    #if metric_fn in (,):
+    #    return True
     raise ValueError("Unsupported metric function")
 
 

@@ -25,6 +25,7 @@ def test_classification_metric():
     expected_preds = np.array([0, 1, 1, 1, 1])
     expected = f1_score(y, expected_preds)
     assert metric_value == expected
+    assert not metric.lower_is_better()
 
 
 def test_language_model_metric():
@@ -56,6 +57,7 @@ def test_language_model_metric():
     ])
     expected = accuracy_score(y.view(-1), expected_preds.reshape(-1))
     assert metric_value == expected
+    assert not metric.lower_is_better()
 
     metric_pad = LanguageModelMetric(pad_idx=2)
     metric_value_pad = metric_pad(model, dl)
