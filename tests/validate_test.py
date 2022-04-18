@@ -101,9 +101,13 @@ def test_cross_validate():
         (dls_fold_i.train.batch_size, dls_fold_i.valid.batch_size) == (bs, bs) for dls_fold_i in call_args_dls
     )
 
+    assert x_train_fold_0.dtype == expected_x_train_fold_0.dtype
     assert np.array_equal(x_train_fold_0, expected_x_train_fold_0)
+    assert y_train_fold_0.dtype == expected_y_train_fold_0.dtype
     assert np.array_equal(y_train_fold_0, expected_y_train_fold_0)
+    assert x_valid_fold_0.dtype == expected_x_valid_fold_0.dtype
     assert np.array_equal(x_valid_fold_0, expected_x_valid_fold_0)
+    assert y_valid_fold_0.dtype == expected_y_valid_fold_0.dtype
     assert np.array_equal(y_valid_fold_0, expected_y_valid_fold_0)
 
     assert np.array_equal(x_train_fold_1, expected_x_train_fold_1)
@@ -138,11 +142,17 @@ def test_cross_validate():
     x_train_fold_2, x_valid_fold_2, y_train_fold_2, y_valid_fold_2, sl_train_fold_2, sl_valid_fold_2 = _dls_to_array(call_args_dls[2])
     x_train_fold_3, x_valid_fold_3, y_train_fold_3, y_valid_fold_3, sl_train_fold_3, sl_valid_fold_3 = _dls_to_array(call_args_dls[3])    
 
+    assert x_train_fold_0.dtype == expected_x_train_fold_0.dtype
     assert np.array_equal(x_train_fold_0, expected_x_train_fold_0)
+    assert y_train_fold_0.dtype == expected_y_train_fold_0.dtype
     assert np.array_equal(y_train_fold_0, expected_y_train_fold_0)
+    assert sl_train_fold_0.dtype == expected_sl_train_fold_0.dtype
     assert np.array_equal(sl_train_fold_0, expected_sl_train_fold_0)
+    assert x_valid_fold_0.dtype == expected_x_valid_fold_0.dtype
     assert np.array_equal(x_valid_fold_0, expected_x_valid_fold_0)
+    assert y_valid_fold_0.dtype == expected_y_valid_fold_0.dtype
     assert np.array_equal(y_valid_fold_0, expected_y_valid_fold_0)
+    assert sl_valid_fold_0.dtype == expected_sl_valid_fold_0.dtype
     assert np.array_equal(sl_valid_fold_0, expected_sl_valid_fold_0)
 
     assert np.array_equal(x_train_fold_1, expected_x_train_fold_1)
