@@ -35,6 +35,7 @@ class ClassificationMetric(Metric):
             preds, y = predict_dl(model, dl, **predict_kwargs)
             return self.metric_fn(preds, y)
 
+    @property
     def lower_is_better(self) -> bool:
         return metric_lower_is_better(self.metric_fn)
 
@@ -50,5 +51,6 @@ class LanguageModelMetric(Metric):
             mask = y.view(-1) != self.pad_idx
             return self.metric_fn(preds.view(-1)[mask], y.view(-1)[mask])
 
+    @property
     def lower_is_better(self) -> bool:
         return metric_lower_is_better(self.metric_fn)
