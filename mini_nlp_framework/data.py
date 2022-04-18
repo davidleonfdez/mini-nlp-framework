@@ -136,12 +136,14 @@ class TextEncodingResult:
 class TextEncoder(ABC):
     "Child classes must define a text encoding method"
     @abstractmethod
-    def encode(text_list:Iterable[str], vocab:Vocab=None) -> TextEncodingResult:
+    def encode(text_list:Iterable[str], vocab:Vocab=None, min_seq_len:int=0) -> TextEncodingResult:
         """Tokenize and numericalize a list of text sequences. 
         Args:
             text_list: list of text documents to encode as a sequence of token ids.
             vocab: vocabulary used to convert from tokens to ids. If `None`, a vocabulary is built and returned as
                 the `vocab` attribute of the output.
+            min_seq_len: minimum accepted sequence length. The sequences with a length lower than `min_seq_len` are
+                discarded.
         Returns:
             TextEncodingResult
                 X_padded: array of shape [`len(corpus)`, max sequence length] containing the numericalized sequences
@@ -157,7 +159,7 @@ class CustomTextEncoder:
         self.use_spacy_tokenizer = use_spacy_tokenizer
         self.ignore_oov_terms = ignore_oov_terms
 
-    def encode(self, text_list:Iterable[str], vocab:Vocab=None) -> TextEncodingResult:
+    def encode(self, text_list:Iterable[str], vocab:Vocab=None, min_seq_len:int=0) -> TextEncodingResult:
         if self.use_spacy_tokenizer:
             nlp = spacy_pipeline_cache.get('en_core_web_lg')
             token_docs = [
@@ -174,7 +176,11 @@ class CustomTextEncoder:
             pad_idx = word_to_idx[' ']
             vocab = Vocab(word_to_idx, list(all_tokens), pad_idx=pad_idx)
         # converting the docs to their token ids
-        X = [[vocab.word_to_idx[token] for token in token_doc] for token_doc in token_docs]
+        X = [
+            [vocab.word_to_idx[token] for token in token_doc] 
+            for token_doc in token_docs 
+            if len(token_doc) >= min_seq_len
+        ]
         seq_lengths = [len(xi) for xi in X]
         max_seq_len = max(seq_lengths)
         X_padded = np.array(pad(X, max_seq_len, vocab.pad_idx))
@@ -185,13 +191,17 @@ class HFTextEncoder:
     def __init__(self, checkpoint_name):
         self.checkpoint_name = checkpoint_name
 
-    def encode(self, text_list:Iterable[str], vocab:HFVocabAdapter=None) -> TextEncodingResult:
+    def encode(self, text_list:Iterable[str], vocab:HFVocabAdapter=None, min_seq_len:int=0) -> TextEncodingResult:
         tokenizer = AutoTokenizer.from_pretrained(self.checkpoint_name)
         tokenized_data = tokenizer(text_list, padding=True)
         X_padded = np.array(tokenized_data['input_ids'])
         vocab = HFVocabAdapter(tokenizer)
-        seq_lengths = (X_padded != tokenizer.pad_token_id).sum(axis=1).tolist()
-        return TextEncodingResult(X_padded, vocab, seq_lengths)
+        seq_lengths = (X_padded != tokenizer.pad_token_id).sum(axis=1)
+        if min_seq_len > 0:
+            min_sl_mask = seq_lengths > min_seq_len
+            X_padded = X_padded[min_sl_mask]
+            seq_lengths = seq_lengths[min_sl_mask]
+        return TextEncodingResult(X_padded, vocab, seq_lengths.tolist())
 
 
 def get_text_encoder_for(emb_source:EmbeddingsSource) -> TextEncoder:
@@ -200,7 +210,7 @@ def get_text_encoder_for(emb_source:EmbeddingsSource) -> TextEncoder:
     return CustomTextEncoder()
 
 
-def encode_text(corpus:Iterable[str], emb_source:EmbeddingsSource) -> TextEncodingResult:
+def encode_text(corpus:Iterable[str], emb_source:EmbeddingsSource, **encode_kwargs) -> TextEncodingResult:
     """Prepare a list of texts to be used as inputs of a model that has an input embedding of type `emb_source`"""
     encoder = get_text_encoder_for(emb_source)
-    return encoder.encode(corpus)
+    return encoder.encode(corpus, **encode_kwargs)
