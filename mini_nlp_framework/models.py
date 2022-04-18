@@ -6,6 +6,7 @@ from mini_nlp_framework.layers import (
     apply_norm, BaseEmbedding, get_embedding, get_norm, Lambda, LinResBlock, PositionalEmbedding, NormType
 )
 from mini_nlp_framework.losses import LossFunction, flat_binary_cross_entropy_loss, flat_cross_entropy_loss
+from mini_nlp_framework.train import ClipGradOptions
 from mini_nlp_framework.torch_utils import get_best_available_device, get_layers_of_type
 import torch
 import torch.nn as nn
@@ -489,7 +490,7 @@ class SemiTransformerClfMulti(nn.Module):
 
 class BaseModelProvider(ABC):
     @abstractmethod
-    def create(self, hp=None, device=None) -> Tuple[nn.Module, Optimizer, LossFunction]:
+    def create(self, hp=None, device=None) -> Tuple[nn.Module, Optimizer, LossFunction, ClipGradOptions]:
         """
         Create a model, optimizer and loss function appropriate for a problem type specific to the child class.
         
@@ -517,7 +518,9 @@ class QuickClassifierProvider(BaseModelProvider):
         self.max_seq_len = max_seq_len
         self.n_classes = n_classes
 
-    def create(self, hp:ClfHyperParameters=None, device=None) -> Tuple[nn.Module, Optimizer, LossFunction]:
+    def create(self, hp:ClfHyperParameters=None, device=None) -> Tuple[
+        nn.Module, Optimizer, LossFunction, ClipGradOptions
+    ]:
         if hp is None: hp = ClfHyperParameters()
         if device is None: device = get_best_available_device()
         model = LinearClassifierFlattened(
@@ -531,7 +534,8 @@ class QuickClassifierProvider(BaseModelProvider):
             {'params': embedding_params, 'lr': hp.embedding_lr},
         ], lr=hp.lr, weight_decay=hp.wd, betas=hp.adam_betas)
         loss = flat_binary_cross_entropy_loss if self.n_classes <= 2 else flat_cross_entropy_loss
-        return model, opt, loss
+        clip_grad = None
+        return model, opt, loss, clip_grad
 
 
 @dataclass
@@ -551,7 +555,9 @@ class CustomLanguageModelProvider(BaseModelProvider):
         self.vocab = vocab
         self.max_seq_len = max_seq_len
     
-    def create(self, hp:LMHyperParameters=None, device=None):
+    def create(self, hp:LMHyperParameters=None, device=None)-> Tuple[
+        nn.Module, Optimizer, LossFunction, ClipGradOptions
+    ]:
         if hp is None: hp = LMHyperParameters()
         if device is None: device = get_best_available_device()
         n_classes = len(self.vocab.idx_to_word)
@@ -577,5 +583,5 @@ class CustomLanguageModelProvider(BaseModelProvider):
             {'params': pos_emb_params, 'lr': hp.lr}
         ], lr=hp.lr, weight_decay=hp.wd, betas=hp.adam_betas)
         loss = partial(flat_cross_entropy_loss, ignore_index=self.vocab.pad_idx)
-        #loss = ComposedLoss(flat_cross_entropy_loss, EmbeddingLoss(nn.MSELoss(), model.embedding))
-        return model, opt, loss
+        clip_grad = ClipGradOptions(model.parameters(), 1.)
+        return model, opt, loss, clip_grad

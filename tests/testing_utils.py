@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from mini_nlp_framework.losses import LossFunction
 from mini_nlp_framework.metrics import Metric
 from mini_nlp_framework.models import BaseModelProvider
-from mini_nlp_framework.train import BaseTrainer
+from mini_nlp_framework.train import BaseTrainer, ClipGradOptions
 from mini_nlp_framework.torch_utils import get_best_available_device
 import torch
 import torch.nn as nn
@@ -42,7 +42,9 @@ class BiasModelProvider(BaseModelProvider):
         self.bias_init = bias_init
         self.create_call_args = []
 
-    def create(self, hp:BiasHyperParameters=None, device=None) -> Tuple[nn.Module, Optimizer, LossFunction]:
+    def create(self, hp:BiasHyperParameters=None, device=None) -> Tuple[
+        nn.Module, Optimizer, LossFunction, ClipGradOptions
+    ]:
         self.create_call_args.append((hp, device))
         if hp is None: hp = BiasHyperParameters()
         if device is None: device = get_best_available_device()
@@ -50,7 +52,8 @@ class BiasModelProvider(BaseModelProvider):
         model.to(device)
         opt = torch.optim.AdamW(model.parameters(), lr=hp.lr, weight_decay=hp.wd, betas=hp.adam_betas)
         loss = nn.MSELoss()
-        return model, opt, loss
+        clip_grad = ClipGradOptions(model.parameters(), 1.5)
+        return model, opt, loss, clip_grad
 
 
 class FakeTrainer(BaseTrainer):

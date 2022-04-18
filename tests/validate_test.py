@@ -42,7 +42,7 @@ def test_cross_validate():
         with torch.no_grad(): model.a -= 1
     trainer = FakeTrainer(fake_train_return_args, update_params)
 
-    _, _, expected_loss_func = BiasModelProvider(bias_init=bias_init).create()
+    _, _, expected_loss_func, expected_clip_grad = BiasModelProvider(bias_init=bias_init).create()
     expected_model_param = bias_init - 1
 
     expected_x_train_fold_0 = X[4:]
@@ -96,6 +96,7 @@ def test_cross_validate():
     assert all(isinstance(loss_func_fold_i, type(expected_loss_func)) for loss_func_fold_i in call_args_loss_func)
     assert all(call_kwargs['metric'] == fake_metric for call_kwargs in trainer.call_kwargs)
     assert all(call_kwargs['device'] == device for call_kwargs in trainer.call_kwargs)
+    assert all(call_kwargs['clip_grad'].max_norm == expected_clip_grad.max_norm for call_kwargs in trainer.call_kwargs)
     assert all(create_args[0] == hp for create_args in model_provider.create_call_args)
     assert all(
         (dls_fold_i.train.batch_size, dls_fold_i.valid.batch_size) == (bs, bs) for dls_fold_i in call_args_dls

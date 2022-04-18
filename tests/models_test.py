@@ -1,4 +1,5 @@
 from collections import Counter
+import math
 from mini_nlp_framework.data import EmbeddingsSource, Vocab
 from mini_nlp_framework.layers import NormType
 from mini_nlp_framework.models import (
@@ -519,7 +520,7 @@ def test_quick_classifier_provider():
     wd = 0.02
     adam_betas = (0.4, 0.8)
     hp = ClfHyperParameters(lr=lr, embedding_lr=embedding_lr, adam_betas=adam_betas, wd=wd)
-    model, opt, loss = model_provider.create(hp=hp)
+    model, opt, loss, clip_grad = model_provider.create(hp=hp)
 
     embedding_first_param = next(model.embedding.parameters())
     embedding_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is embedding_first_param)
@@ -539,9 +540,10 @@ def test_quick_classifier_provider():
     ])
     loss_in_labels = torch.tensor([0, 0, 2, 2])
     assert loss(loss_in_logits, loss_in_labels) == F.cross_entropy(loss_in_logits, loss_in_labels)
+    assert clip_grad is None
 
     binary_model_provider = QuickClassifierProvider(vocab, max_seq_len, 2)
-    binary_model, opt, loss = binary_model_provider.create(hp=hp)
+    binary_model, opt, loss, _ = binary_model_provider.create(hp=hp)
 
     assert binary_model(torch.randint(0, len(vocab), size=(4, max_seq_len))).shape == (4, 1)
     loss_in_logits = torch.tensor([
@@ -569,7 +571,7 @@ def test_custom_language_model_provider():
     wd = 0.025
     adam_betas = (0.35, 0.85)
     hp = LMHyperParameters(lr=lr, transformer_lr=transformer_lr, embedding_lr=embedding_lr, adam_betas=adam_betas, wd=wd)
-    model, opt, loss = model_provider.create(hp=hp)
+    model, opt, loss, clip_grad = model_provider.create(hp=hp)
 
     embedding_first_param = next(model.embedding.parameters())
     embedding_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is embedding_first_param)
@@ -579,6 +581,7 @@ def test_custom_language_model_provider():
     tfm_param_group = next(pg for pg in opt.param_groups if pg['params'][0] is tfm_first_param)
     n_model_params = sum(1 for p in model.parameters())
     n_opt_params = sum(len(pg['params']) for pg in opt.param_groups)
+    n_clip_grad_param = sum(1 for p in clip_grad.params)
 
     seq_lengths = torch.tensor([max_seq_len, max_seq_len//2, max_seq_len//2])
     assert model(torch.randint(0, len(vocab), size=(3, max_seq_len)), seq_lengths).shape == (3, max_seq_len, len(vocab))
@@ -594,3 +597,6 @@ def test_custom_language_model_provider():
     loss_in_labels = torch.randint(0, len(vocab), size=(bs, max_seq_len)).view(-1)
     loss_in_labels[-1] = pad_idx
     assert loss(loss_in_logits, loss_in_labels) == F.cross_entropy(loss_in_logits, loss_in_labels, ignore_index=pad_idx)
+
+    assert math.isclose(clip_grad.max_norm, 1.)
+    assert n_model_params == n_clip_grad_param
