@@ -1,5 +1,6 @@
 import math
 from mini_nlp_framework.data import DataLoaders, get_dl_from_tensors
+from mini_nlp_framework.metrics import Metric
 from mini_nlp_framework.predict import predict_dl
 from mini_nlp_framework.train import (
     ClipGradOptions,
@@ -90,10 +91,22 @@ def test_train_lengths():
     assert tl_2_epochs_after_best_or_5_epochs.must_stop(EpochTrainingStats(0, 0, 0.6, 5))
 
 
-def regression_metric(model, dl, metric_fn=mean_absolute_error, **predict_kwargs):
-    with torch.no_grad():
-        preds, y = predict_dl(model, dl, predict=lambda model, x, **kwargs: model(x).cpu(), **predict_kwargs)
-        return metric_fn(preds, y)
+class RegressionMetric(Metric):
+    def __init__(self, metric_fn=mean_absolute_error):
+        self.metric_fn = metric_fn
+
+    def __call__(self, model:nn.Module, dl, **predict_kwargs) -> float:
+        with torch.no_grad():
+            preds, y = predict_dl(model, dl, predict=lambda model, x, **kwargs: model(x).cpu(), **predict_kwargs)
+            return self.metric_fn(preds, y)
+
+    @property
+    def lower_is_better(self) -> bool:
+        return True
+
+    @property
+    def name(self) -> str:
+        return self.metric_fn.__name__
 
 
 class CountCallsCallback(TrainingCallback):
@@ -125,7 +138,7 @@ def test_train():
         # Use small lr to ensure loss always goes down
         opt = torch.optim.Adam(model.parameters(), lr=1e-3)
         sched = None #torch.optim.lr_scheduler.StepLR(opt, 1, gamma=0.5)
-        metric = regression_metric
+        metric = RegressionMetric()
         clip_grad = ClipGradOptions(model.parameters(), clip_norm)
         cbs = [CountCallsCallback()]
 

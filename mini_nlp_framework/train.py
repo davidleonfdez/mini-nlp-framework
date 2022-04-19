@@ -17,6 +17,7 @@ class EpochTrainingStats:
     train_metric:float
     valid_metric:float
     epoch_idx:int
+    metric_name:str=''
 
 
 @dataclass
@@ -143,6 +144,8 @@ def train(
     device=None, clip_grad:ClipGradOptions=None, callbacks:List[TrainingCallback]=None
 ) -> TrainingStats:
     """
+    Train `model` with the data given by `dls.train` to minimize `loss_func`.
+
     Args
         train_length: if it's an int, number of training epochs; if it's a TrainLength's subclass instance, training
             won't stop until `train_length.must_stop(...)`, which is called at the end of each epoch, returns `True`.
@@ -207,8 +210,9 @@ def train(
         #print('Epoch completed')
         model.eval()
 
-        train_metric, valid_metric = None, None
+        train_metric, valid_metric, metric_name = None, None, ''
         if metric is not None:
+            metric_name = metric.name
             train_metric = metric(model, dls.train, device=device)            
             train_metric_history.append(train_metric)
             if dls.valid is not None:
@@ -219,7 +223,7 @@ def train(
         
         n_epochs_completed += 1
 
-        epoch_stats = EpochTrainingStats(avg_train_loss, train_metric, valid_metric, n_epochs_completed)
+        epoch_stats = EpochTrainingStats(avg_train_loss, train_metric, valid_metric, n_epochs_completed, metric_name)
 
         for cb in callbacks:
             cb.on_epoch_end(epoch_stats, model, opt)
@@ -284,6 +288,6 @@ class MetricsPrinter(TrainingCallback):
     def on_epoch_end(self, stats: EpochTrainingStats, model:nn.Module, opt:torch.optim.Optimizer):
         print(f'*** Epoch {stats.epoch_idx} stats ***')
         print(f'Avg train loss = {stats.avg_train_loss}')
-        print(f'Train metric (f1) = {stats.train_metric}')
+        print(f'Train metric ({stats.metric_name}) = {stats.train_metric}')
         if stats.valid_metric is not None:
-            print(f'Valid metric (f1) = {stats.valid_metric}')
+            print(f'Valid metric ({stats.metric_name}) = {stats.valid_metric}')

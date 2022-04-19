@@ -21,6 +21,11 @@ class Metric(ABC):
     def lower_is_better(self) -> bool:
         pass
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
     @abstractmethod
     def __call__(self, model:nn.Module, dl:DataLoader, **predict_kwargs) -> float:
         "Calculate the value of the metric using the inputs and labels given by `dl`."
@@ -39,6 +44,10 @@ class ClassificationMetric(Metric):
     def lower_is_better(self) -> bool:
         return metric_lower_is_better(self.metric_fn)
 
+    @property
+    def name(self) -> str:
+        return self.metric_fn.__name__
+
 
 class LanguageModelMetric(Metric):
     def __init__(self, metric_fn=accuracy_score, pad_idx=0):
@@ -54,3 +63,7 @@ class LanguageModelMetric(Metric):
     @property
     def lower_is_better(self) -> bool:
         return metric_lower_is_better(self.metric_fn)
+
+    @property
+    def name(self) -> str:
+        return self.metric_fn.__name__
