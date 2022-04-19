@@ -1,3 +1,4 @@
+import copy
 import gc
 from mini_nlp_framework.data import DataLoaders, DEFAULT_BS, get_dl_from_tensors, get_kfolds
 from mini_nlp_framework.metrics import Metric
@@ -63,8 +64,11 @@ def cross_validate(
         valid_tensors = [torch.tensor(t) for t in valid_arrays]
         dls = DataLoaders(get_dl_from_tensors(*train_tensors, bs=bs), get_dl_from_tensors(*valid_tensors, bs=bs))
         model, opt, loss_func, clip_grad = model_provider.create(hp=hp, device=device)
+        # We need to duplicate because some `TrainLength` child classes have state that is updated during training
+        train_length_copy = copy.deepcopy(train_length)
         stats = trainer.train(
-            train_length, model, dls, loss_func, opt, metric=metric, device=device, clip_grad=clip_grad, **train_params
+            train_length_copy, model, dls, loss_func, opt, metric=metric, device=device, clip_grad=clip_grad, 
+            **train_params
         )
         stats_by_fold.append(stats)        
         model = None
