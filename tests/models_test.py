@@ -553,8 +553,9 @@ def test_quick_classifier_provider():
         [0.2],
         [0.1],
     ])
-    loss_in_labels = torch.tensor([0., 0, 1, 1, 1])
-    assert loss(loss_in_logits, loss_in_labels) == F.binary_cross_entropy_with_logits(loss_in_logits.view(-1), loss_in_labels)
+    loss_in_labels = torch.tensor([0, 0, 1, 1, 1])
+    expected_loss = F.binary_cross_entropy_with_logits(loss_in_logits.view(-1), loss_in_labels.float())
+    assert loss(loss_in_logits, loss_in_labels) == expected_loss
 
 
 @pytest.mark.slow
