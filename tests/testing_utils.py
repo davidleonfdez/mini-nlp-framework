@@ -75,5 +75,10 @@ class FakeTrainer(BaseTrainer):
 class FakeMetric(Metric):
     def __call__(*args, **kwargs): return 0
 
+    @property
     def lower_is_better(self) -> bool:
         return False
+
+    @property
+    def name(self) -> str:
+        return ''

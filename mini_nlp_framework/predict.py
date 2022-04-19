@@ -1,7 +1,7 @@
 import torch
 
 
-def predict(model, x, thresh=0.5):
+def predict_binary(model, x, thresh=0.5):
     preds = model(x).cpu()
     pred_classes = (preds > thresh).int()
     return pred_classes
@@ -13,7 +13,7 @@ def predict_multiclass(model, x, *extra_xs):
     return pred_classes
 
 
-def predict_dl(model, dl, predict=predict, device=None, **predict_kwargs):
+def predict_dl(model, dl, predict=predict_binary, device=None, **predict_kwargs):
     preds = None
     y = []
     preds = []

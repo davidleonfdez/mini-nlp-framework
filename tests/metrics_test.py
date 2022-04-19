@@ -1,13 +1,13 @@
 from mini_nlp_framework.data import get_dl_from_tensors
 from mini_nlp_framework.layers import Lambda
-from mini_nlp_framework.metrics import ClassificationMetric, LanguageModelMetric
+from mini_nlp_framework.metrics import BinaryClassificationMetric, LanguageModelMetric, MulticlassClassificationMetric
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score
 from testing_utils import ModClassifier
 import torch
 
 
-def test_classification_metric():
+def test_binary_classification_metric():
     model = ModClassifier(n_classes=2)
     X = torch.tensor([
         [0, 1, 4, 5],
@@ -16,14 +16,36 @@ def test_classification_metric():
         [5, 6, 7, 9],
         [0, 0, 1, 0]
     ])
-    y = torch.tensor([0., 0, 1, 0, 1])
+    y = torch.tensor([0, 0, 1, 0, 1])
     dl = get_dl_from_tensors(X, y, bs=2)
 
-    metric = ClassificationMetric()
+    metric = BinaryClassificationMetric()
     metric_value = metric(model, dl)
 
     expected_preds = np.array([0, 1, 1, 1, 1])
     expected = f1_score(y, expected_preds)
+    assert metric_value == expected
+    assert not metric.lower_is_better
+
+
+def test_multiclass_classification_metric():
+    model = Lambda(lambda x: -x)
+    X = torch.tensor([
+        [[7, 2, 3]],
+        [[0, 1, 2]],
+        [[-5, -3, -4]],
+        [[1, 5, 2]],
+        [[2, 3, 1]],
+        [[2, 3, -1]],
+    ])
+    y = torch.tensor([0, 2, 1, 0, 1, 2])
+    dl = get_dl_from_tensors(X, y, bs=2)
+
+    metric = MulticlassClassificationMetric()
+    metric_value = metric(model, dl)
+
+    expected_preds = np.array([1, 0, 0, 0, 2, 2])
+    expected = f1_score(y, expected_preds, average='weighted')
     assert metric_value == expected
     assert not metric.lower_is_better
 
