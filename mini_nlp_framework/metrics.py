@@ -9,6 +9,7 @@ from typing import Callable
 
 
 def metric_lower_is_better(metric_fn:Callable):
+    "Indicates whether a lower value returned by `metric_fn` implies better predictions."
     if metric_fn in (accuracy_score, f1_score):
         return False
     #if metric_fn in (,):
@@ -17,6 +18,7 @@ def metric_lower_is_better(metric_fn:Callable):
 
 
 class Metric(ABC):
+    "Base metric class. Child classes must wrap a callable metric function."
     @property
     @abstractmethod
     def lower_is_better(self) -> bool:
@@ -33,6 +35,7 @@ class Metric(ABC):
 
 
 class BinaryClassificationMetric(Metric):
+    "Metric appropriate for binary classification problems. Default metric function is F1-score."
     def __init__(self, metric_fn=f1_score):
         self.metric_fn = metric_fn
 
@@ -51,6 +54,7 @@ class BinaryClassificationMetric(Metric):
 
 
 class MulticlassClassificationMetric(Metric):
+    "Metric appropriate for multi-class classification problems. Default metric function is F1-score."
     def __init__(self, metric_fn=partial(f1_score, average='weighted')):
         self.metric_fn = metric_fn
         self.inner_metric_fn = metric_fn
@@ -72,6 +76,7 @@ class MulticlassClassificationMetric(Metric):
 
 
 class LanguageModelMetric(Metric):
+    "Metric appropriate for language modeling problems. Default metric function is accuracy."
     def __init__(self, metric_fn=accuracy_score, pad_idx=0):
         self.metric_fn = metric_fn
         self.pad_idx = pad_idx

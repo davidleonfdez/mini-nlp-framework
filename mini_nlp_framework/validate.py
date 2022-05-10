@@ -3,7 +3,7 @@ import gc
 from mini_nlp_framework.data import DataLoaders, DEFAULT_BS, get_dl_from_tensors, get_kfolds
 from mini_nlp_framework.metrics import Metric
 from mini_nlp_framework.models import BaseModelProvider
-from mini_nlp_framework.train import DefaultTrainer, TrainLength, TrainingStats
+from mini_nlp_framework.train import BaseTrainer, DefaultTrainer, TrainLength, TrainingStats
 import numpy as np
 import os
 import torch
@@ -51,9 +51,31 @@ class CrossValidationStats:
 
 def cross_validate(
     model_provider:BaseModelProvider, X:np.ndarray, y:np.ndarray, seq_lengths:Optional[List[int]]=None, nfolds:int=3, 
-    train_length:Union[int, TrainLength]=3, bs:int=DEFAULT_BS, trainer=None, metric:Metric=None, hp=None, device=None, 
-    **train_params
+    train_length:Union[int, TrainLength]=3, bs:int=DEFAULT_BS, trainer:BaseTrainer=None, metric:Metric=None, hp=None, 
+    device=None, **train_params
 ) -> CrossValidationStats:
+    """Evaluate a model using k-fold cross validation.
+    
+    Args:
+        model_provider: model provider that initializes the model, optimizer and loss function once per fold.
+        X: array of inputs. The size of the first dimension must be equal to the number of examples; the rest of the 
+            dimensions must adhere to the requirements of the model.
+        y: array of targets. The size of the first dimension size must be the number of examples; the rest of the 
+            dimensions must adhere to the requirements of the model.
+        seq_lengths: length of every input sequence, with length `(X.shape[0],)`. It must be `None` when 
+            `model_provider` returns a model that doesn't need them.
+        nfolds: number of cross validation folds.
+        train_length: if it's an integer, number of epochs to train the model for each fold. Otherwise, it must be an
+            instance of a `TrainLength` child class that defines a stop criterion.
+        trainer: training session runner that is called once per fold.
+        metric: metric function callable that is evaluated once per fold, epoch and set (train/valid). Its results
+            are included in the output of `cross_validate`.
+        hp: hyperparameters passed to `model_provider.create`.
+        device: device where the model is trained and the metrics are evaluated, with PyTorch format.
+
+    Returns:
+        Statistics (losses, metrics, steps) summarized and per fold.
+    """
     stats_by_fold = []
     if trainer is None: trainer = DefaultTrainer()
 

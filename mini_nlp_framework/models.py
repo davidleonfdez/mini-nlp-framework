@@ -511,6 +511,7 @@ class ClfHyperParameters:
 
 
 class QuickClassifierProvider(BaseModelProvider):
+    "Provider of objects needed to train a simple classifier."
     embedding_source=EmbeddingsSource.Spacy
 
     def __init__(self, vocab:Vocab, max_seq_len:int, n_classes:int):

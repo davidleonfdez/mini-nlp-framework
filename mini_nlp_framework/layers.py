@@ -12,6 +12,21 @@ from typing import Callable, Optional
 
 
 class Lambda(nn.Module):
+    """Layer that wraps a function.
+
+    One common use if to insert code in the middle of a nn.Sequential module without defining a custom module
+    with its forward. For example:
+
+    net = nn.Sequential(
+        nn.Linear(10, 100),
+        Lambda(lambda x: x * 5),
+        nn.Linear(100, 1),
+    )
+
+    Args:
+        func: callable that receives the input of the `forward` method and whose return value is then returned by
+            `forward`.
+    """
     def __init__(self, func:Callable[[torch.Tensor], torch.Tensor]):
         super().__init__()
         self.func = func
@@ -50,6 +65,8 @@ class BaseEmbedding(nn.Module):
 
 class StdEmbedding(BaseEmbedding):
     """
+    Embedding container that includes a nn.Embedding, a positional embedding and a dropout layer.
+
     Args:
         vocab: vocabulary containing the mappings between id's and tokens for the data than the embedding can accept.
         max_seq_len: maximun sequence length (second dimension of the input) that this layer can expect to receive.
@@ -91,7 +108,7 @@ class PositionalEmbedding(nn.Module):
     Args:
         in_ftrs: number of input features (last dimension of the input), tipically the embedding dim of the word
             embeddings.
-        max_seq_len: maximun sequence length (second dimension of the input) that this layer can expect to receive.
+        max_seq_len: maximum sequence length (second dimension of the input) that this layer can expect to receive.
     """
     def __init__(self, in_ftrs:int, max_seq_len:int):
         super().__init__()
@@ -102,7 +119,19 @@ class PositionalEmbedding(nn.Module):
 
 
 class SpacyEmbedding(BaseEmbedding):
-    "Container of `nn.Embedding` initialized with the outputs of `nlp` for the elements of the vocab."
+    """Container of `nn.Embedding` initialized with the outputs of `nlp` for the elements of the vocab.
+    
+    Args:
+        vocab: vocabulary containing the mappings between id's and tokens for the data than the embedding can accept.
+        nlp: spaCy language object used to obtain a feature vector for each token of `vocab` and initialize the
+            `nn.Embedding`.
+        max_seq_len: maximum sequence length (second dimension of the input) that this layer can expect to receive.
+        p_drop: `p` param of a `nn.Dropout` layer placed after the `nn.Embedding`.
+        add_pos_emb: if `True`m a trainable positional embedding is added to every item of the output of the 
+            Embedding layer; i.e., the same tensor is added to batch[0], batch[1], ...
+        progress_tracker: tracker of the progress of the load of the embedding that is notified after each token of the
+            vocab is converted into a feature vector.
+    """
     def __init__(self, vocab:Vocab, nlp:spacy.language.Language, max_seq_len:int, p_drop:float=0, add_pos_emb=False,
                  progress_tracker:Optional[ProgressTracker]=None):
         super().__init__()
@@ -141,7 +170,11 @@ class SpacyEmbedding(BaseEmbedding):
 
 
 class DistilBertEmbedding(BaseEmbedding):
-    "Container of a pretrained DistilBert contextual embedding."
+    """Container of a pretrained DistilBert contextual embedding.
+
+    Args:
+        p_drop: `p` param of a `nn.Dropout` layer placed as the last submodule.
+    """
     def __init__(self, p_drop:float=0):
         super().__init__()
         checkpoint_name = "distilbert-base-uncased"
@@ -171,6 +204,15 @@ class DistilBertEmbedding(BaseEmbedding):
 
 
 def get_embedding(source:EmbeddingsSource, vocab, max_seq_len, add_pos_emb=False, **emb_kwargs) -> BaseEmbedding:
+    """Build an instance of the `BaseEmbedding` child class that corresponds to `source`.
+    
+    Args:
+        vocab: vocabulary that contains the input ids that the embedding must accept.
+        max_seq_len: maximum sequence length (second dimension of the input) that the returned module must accept.
+        add_pos_emb: not applicable when `source == EmbeddingsSource.DistilBert`, in which case it must be True.
+
+    The rest of the kwargs are forwarded to the `__init__` method of the corresponding `BaseEmbedding` subclass.
+    """
     if source == EmbeddingsSource.Std:
         return StdEmbedding(vocab, max_seq_len, add_pos_emb=add_pos_emb, **emb_kwargs)
     if source == EmbeddingsSource.Spacy:

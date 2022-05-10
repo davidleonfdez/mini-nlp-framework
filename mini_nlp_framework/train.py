@@ -247,6 +247,10 @@ def train(
 
 
 class BaseTrainer(ABC):
+    """Base runner of a training session.
+    
+    A trainer can be used to split a training run into sections with different hyperparameters, frozen layers, etc.
+    """
     @abstractmethod
     def train(
         self, 
@@ -265,6 +269,7 @@ class BaseTrainer(ABC):
 
 
 class DefaultTrainer(BaseTrainer):
+    "Standard runner of a training session that just calls `train`."
     def train(
         self, 
         train_length:Union[int, TrainLength], 

@@ -14,6 +14,13 @@ from typing import Dict, Iterable, List, Tuple, Union
 DEFAULT_BS = 64
 
 
+"""Vocabulary that maps tokens to ids and viceversa.
+
+Args
+    word_to_idx: dictionary that assigns a id to every token.
+    idx_to_word: list of tokens. The position of a token in the list is the id assigned to that token.
+    pad_idx: index of the padding token.
+"""
 class Vocab:
     def __init__(self, word_to_idx:Dict[str, int], idx_to_word:List[str], pad_idx:int=0):
         self._word_to_idx = word_to_idx
@@ -37,6 +44,11 @@ class Vocab:
 
 
 class HFVocabAdapter(Vocab):
+    """Vocabulary adapted from HuggingFace tokenizer.
+    
+    Args
+        tokenizer: HuggingFace tokenizer that contains a vocab.
+    """
     def __init__(self, tokenizer:PreTrainedTokenizer):
         self.tokenizer = tokenizer
         self._word_to_idx = None
@@ -73,7 +85,7 @@ class EmbeddingsSource(Enum):
 
 
 class SpacyPipelineCache:
-    "Cache of spacy pipelines that can be queried by name"
+    "Cache of spaCy pipelines that can be queried by name"
     def __init__(self):
         self.cache = dict()
 
@@ -92,7 +104,23 @@ class SpacyPipelineCache:
 spacy_pipeline_cache = SpacyPipelineCache()
 
 
-def get_kfolds(X:np.ndarray, y:np.ndarray, seq_lengths:Union[List[int], np.ndarray]=None, n:int=3):
+def get_kfolds(X:np.ndarray, y:np.ndarray, seq_lengths:Union[List[int], np.ndarray]=None, n:int=3) -> List[Tuple]:
+    """
+    Split `X`, `y` and `seq_lengths` into `n` folds and group them to form `n` train/test sets.
+
+    Returns:
+        List, each item is a tuple that contains a train and a test set. The training set has size 
+        (total size) * (n-1)/n, while the test set size is (total size)/n.
+        Let `out` be the return value, then each tuple `out[i]` contains:
+            X_train: np.ndarray that contains the items of `X` assigned to the training set `i`.
+            X_test: np.ndarray that contains the items of `X` assigned to the test set `i`.
+            y_train: np.ndarray that contains the items of `y` assigned to the training set `i`.
+            y_test: np.ndarray that contains the items of `y` assigned to the test set `i`.
+            sl_train: np.ndarray that contains the items of `seq_lengths` assigned to the training set `i`. It's None
+                when `seq_lengths is None`.
+            sl_test: np.ndarray that contains the items of `seq_lengths` assigned to the test set `i`. It's None
+                when `seq_lengths is None`.
+    """
     kf = KFold(n_splits=n, random_state=None, shuffle=False)
     splits = []
     if isinstance(seq_lengths, list): seq_lengths = np.array(seq_lengths)
@@ -154,7 +182,15 @@ class TextEncoder(ABC):
         """
 
 
-class CustomTextEncoder:
+class CustomTextEncoder(TextEncoder):
+    """Custom tokenizer and numericalizer.
+    
+    When `use_spacy_tokenizer is False`, the tokens are extracted by splitting the input sequences using whitespace
+    as token delimiter.
+
+    Args:
+        use_spacy_tokenizer: whether to use a spaCy tokenizer.
+    """
     def __init__(self, use_spacy_tokenizer=True, ignore_oov_terms=True):
         self.use_spacy_tokenizer = use_spacy_tokenizer
         self.ignore_oov_terms = ignore_oov_terms
@@ -187,7 +223,12 @@ class CustomTextEncoder:
         return TextEncodingResult(X_padded, vocab, seq_lengths)
 
 
-class HFTextEncoder:
+class HFTextEncoder(TextEncoder):
+    """HuggingFace tokenizer and numericalizer.
+
+    Args:
+        checkpoint_name: name of the HuggingFace Hub checkpoint that contains the data needed to load the tokenizer.
+    """
     def __init__(self, checkpoint_name):
         self.checkpoint_name = checkpoint_name
 
@@ -211,6 +252,11 @@ def get_text_encoder_for(emb_source:EmbeddingsSource) -> TextEncoder:
 
 
 def encode_text(corpus:Iterable[str], emb_source:EmbeddingsSource, **encode_kwargs) -> TextEncodingResult:
-    """Prepare a list of texts to be used as inputs of a model that has an input embedding of type `emb_source`"""
+    """Prepare a list of texts to be used as inputs of a model that has an input embedding of type `emb_source`
+    
+    Args
+        corpus: list of text sequences (probably full dataset) to encode.
+        emb_source: source of the input embedding of the model you are encoding the text for.
+    """
     encoder = get_text_encoder_for(emb_source)
     return encoder.encode(corpus, **encode_kwargs)
