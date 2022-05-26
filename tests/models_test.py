@@ -1,8 +1,8 @@
 from collections import Counter
 import math
-from mini_nlp_framework.data import EmbeddingsSource, Vocab
-from mini_nlp_framework.layers import NormType
-from mini_nlp_framework.models import (
+from mininlp.data import EmbeddingsSource, Vocab
+from mininlp.layers import NormType
+from mininlp.models import (
     ClassificationHeadMultiArch, 
     ClassificationHeadSingleArch,
     ClfHyperParameters, 
@@ -17,7 +17,7 @@ from mini_nlp_framework.models import (
     SemiTransformerClfFlattened, 
     SemiTransformerClfMulti
 )
-from mini_nlp_framework.torch_utils import get_layers_of_type
+from mininlp.torch_utils import get_layers_of_type
 import pytest
 import torch
 import torch.nn as nn

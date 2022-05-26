@@ -30,11 +30,11 @@ with k = 3 (because of the default parameter `n_folds = 3`).
 For every fold, the model is trained until 3 epochs pass without an improvement of the previous best validation metric.
 
 ```
-from mini_nlp_framework.data import encode_text
-from mini_nlp_framework.metrics import BinaryClassificationMetric, MulticlassClassificationMetric
-from mini_nlp_framework.models import QuickClassifierProvider
-from mini_nlp_framework.train import MetricsPrinter, TrainLengthBestMetricEpochsAgo
-from mini_nlp_framework.validate import cross_validate
+from mininlp.data import encode_text
+from mininlp.metrics import BinaryClassificationMetric, MulticlassClassificationMetric
+from mininlp.models import QuickClassifierProvider
+from mininlp.train import MetricsPrinter, TrainLengthBestMetricEpochsAgo
+from mininlp.validate import cross_validate
 
 model_provider_cls = QuickClassifierProvider
 df = pd.read_csv('/path/to/your/data.csv')
@@ -56,7 +56,7 @@ print(cv_results)
 
 ## Language modeling
 
-This example assumes your data is stored in a csv that has, at least, a "text" column that contains the 
+This example assumes your data is stored in a csv file that has, at least, a "text" column that contains the 
 documents/sequences.
 
 A language model composed by a transformer encoder and a linear layer is evaluated using k-fold cross-validation 
@@ -64,11 +64,11 @@ with k = 3 (because of the default parameter `n_folds = 3`).
 For every fold, the model is trained for 10 epochs.
 
 ```
-from mini_nlp_framework.data import encode_text
-from mini_nlp_framework.metrics import LanguageModelMetric
-from mini_nlp_framework.models import CustomLanguageModelProvider
-from mini_nlp_framework.train import MetricsPrinter
-from mini_nlp_framework.validate import cross_validate
+from mininlp.data import encode_text
+from mininlp.metrics import LanguageModelMetric
+from mininlp.models import CustomLanguageModelProvider
+from mininlp.train import MetricsPrinter
+from mininlp.validate import cross_validate
 
 model_provider_cls = CustomLanguageModelProvider
 df = pd.read_csv('/path/to/your/data.csv')

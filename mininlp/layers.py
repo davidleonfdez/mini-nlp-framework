@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import warnings
-from mini_nlp_framework.data import EmbeddingsSource, spacy_pipeline_cache, Vocab
-from mini_nlp_framework.misc import ProgressTracker
+from mininlp.data import EmbeddingsSource, spacy_pipeline_cache, Vocab
+from mininlp.misc import ProgressTracker
 import spacy
 import torch
 import torch.nn as nn

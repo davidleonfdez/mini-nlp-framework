@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from mini_nlp_framework.losses import LossFunction
-from mini_nlp_framework.metrics import Metric
-from mini_nlp_framework.models import BaseModelProvider
-from mini_nlp_framework.train import BaseTrainer, ClipGradOptions
-from mini_nlp_framework.torch_utils import get_best_available_device
+from mininlp.losses import LossFunction
+from mininlp.metrics import Metric
+from mininlp.models import BaseModelProvider
+from mininlp.train import BaseTrainer, ClipGradOptions
+from mininlp.torch_utils import get_best_available_device
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer

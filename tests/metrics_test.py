@@ -1,6 +1,6 @@
-from mini_nlp_framework.data import get_dl_from_tensors
-from mini_nlp_framework.layers import Lambda
-from mini_nlp_framework.metrics import BinaryClassificationMetric, LanguageModelMetric, MulticlassClassificationMetric
+from mininlp.data import get_dl_from_tensors
+from mininlp.layers import Lambda
+from mininlp.metrics import BinaryClassificationMetric, LanguageModelMetric, MulticlassClassificationMetric
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score
 from testing_utils import ModClassifier

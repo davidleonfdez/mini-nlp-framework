@@ -1,6 +1,6 @@
-from mini_nlp_framework.data import DataLoaders
-from mini_nlp_framework.train import TrainingStats
-from mini_nlp_framework.validate import CrossValidationStats, cross_validate
+from mininlp.data import DataLoaders
+from mininlp.train import TrainingStats
+from mininlp.validate import CrossValidationStats, cross_validate
 import numpy as np
 import os
 from testing_utils import BiasHyperParameters, BiasModel, BiasModelProvider, FakeMetric, FakeTrainer

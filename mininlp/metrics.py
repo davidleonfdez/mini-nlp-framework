@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import partial
-from mini_nlp_framework.predict import predict_binary, predict_dl, predict_multiclass
+from mininlp.predict import predict_binary, predict_dl, predict_multiclass
 from sklearn.metrics import accuracy_score, f1_score
 import torch
 import torch.nn as nn

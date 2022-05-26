@@ -1,4 +1,4 @@
-from mini_nlp_framework.data import EmbeddingsSource, encode_text, spacy_pipeline_cache
+from mininlp.data import EmbeddingsSource, encode_text, spacy_pipeline_cache
 import pytest
 
 

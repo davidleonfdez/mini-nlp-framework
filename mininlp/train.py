@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from mini_nlp_framework.data import DataLoaders
-from mini_nlp_framework.losses import LossFunction
-from mini_nlp_framework.metrics import Metric
-from mini_nlp_framework.torch_utils import get_best_available_device
+from mininlp.data import DataLoaders
+from mininlp.losses import LossFunction
+from mininlp.metrics import Metric
+from mininlp.torch_utils import get_best_available_device
 import numpy as np
 import torch
 import torch.nn as nn

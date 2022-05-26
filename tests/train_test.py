@@ -1,8 +1,8 @@
 import math
-from mini_nlp_framework.data import DataLoaders, get_dl_from_tensors
-from mini_nlp_framework.metrics import Metric
-from mini_nlp_framework.predict import predict_dl
-from mini_nlp_framework.train import (
+from mininlp.data import DataLoaders, get_dl_from_tensors
+from mininlp.metrics import Metric
+from mininlp.predict import predict_dl
+from mininlp.train import (
     ClipGradOptions,
     EpochTrainingStats,
     train,

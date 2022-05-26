@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
-from mini_nlp_framework.data import EmbeddingsSource, Vocab
-from mini_nlp_framework.layers import (
+from mininlp.data import EmbeddingsSource, Vocab
+from mininlp.layers import (
     apply_norm, BaseEmbedding, get_embedding, get_norm, Lambda, LinResBlock, PositionalEmbedding, NormType
 )
-from mini_nlp_framework.losses import LossFunction, flat_binary_cross_entropy_loss, flat_cross_entropy_loss
-from mini_nlp_framework.train import ClipGradOptions
-from mini_nlp_framework.torch_utils import get_best_available_device, get_layers_of_type
+from mininlp.losses import LossFunction, flat_binary_cross_entropy_loss, flat_cross_entropy_loss
+from mininlp.train import ClipGradOptions
+from mininlp.torch_utils import get_best_available_device, get_layers_of_type
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer

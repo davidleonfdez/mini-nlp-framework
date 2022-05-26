@@ -1,9 +1,9 @@
 import copy
 import gc
-from mini_nlp_framework.data import DataLoaders, DEFAULT_BS, get_dl_from_tensors, get_kfolds
-from mini_nlp_framework.metrics import Metric
-from mini_nlp_framework.models import BaseModelProvider
-from mini_nlp_framework.train import BaseTrainer, DefaultTrainer, TrainLength, TrainingStats
+from mininlp.data import DataLoaders, DEFAULT_BS, get_dl_from_tensors, get_kfolds
+from mininlp.metrics import Metric
+from mininlp.models import BaseModelProvider
+from mininlp.train import BaseTrainer, DefaultTrainer, TrainLength, TrainingStats
 import numpy as np
 import os
 import torch
