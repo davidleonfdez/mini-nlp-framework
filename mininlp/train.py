@@ -131,10 +131,16 @@ class TrainLengthOr(TrainLength):
 
 
 class TrainingCallback(ABC):
+    def on_train_begin(self):
+        pass
+
     def on_step_end(self, tr_loss:torch.Tensor, model:nn.Module, opt:torch.optim.Optimizer):
         pass
 
     def on_epoch_end(self, stats:EpochTrainingStats, model:nn.Module, opt:torch.optim.Optimizer):
+        pass
+
+    def on_train_end(self, stats:TrainingStats):
         pass
 
 
@@ -177,6 +183,9 @@ def train(
     train_loss_history = []
     train_metric_history = []
     valid_metric_history = []
+
+    for cb in callbacks:
+        cb.on_train_begin()
 
     while (True):
         model.train()
@@ -237,13 +246,18 @@ def train(
         #print(f'Train metric (f1) = {train_metric}')
         #print(f'Valid metric (f1) = {valid_metric}')
 
-    return TrainingStats(
+    full_stats = TrainingStats(
         np.array(train_loss_history), 
         np.array(train_metric_history), 
         np.array(valid_metric_history), 
         n_epochs_completed, 
         n_steps,
     )
+
+    for cb in callbacks:
+        cb.on_train_end(full_stats)
+
+    return full_stats
 
 
 class BaseTrainer(ABC):

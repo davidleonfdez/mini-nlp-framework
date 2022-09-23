@@ -111,14 +111,22 @@ class RegressionMetric(Metric):
 
 class CountCallsCallback(TrainingCallback):
     def __init__(self):
+        self.n_on_train_begin_calls = 0
         self.n_on_step_end_calls = 0
         self.n_on_epoch_end_calls = 0
+        self.n_on_train_end_calls = 0
+
+    def on_train_begin(self):
+        self.n_on_train_begin_calls += 1
 
     def on_step_end(self, tr_loss: torch.Tensor, model: nn.Module, opt: torch.optim.Optimizer):
         self.n_on_step_end_calls += 1
 
     def on_epoch_end(self, stats: EpochTrainingStats, model: nn.Module, opt: torch.optim.Optimizer):
         self.n_on_epoch_end_calls += 1
+
+    def on_train_end(self, *args):
+        self.n_on_train_end_calls += 1
 
 
 def test_train():
@@ -198,3 +206,5 @@ def test_train():
     assert math.isclose(stats_to_test_loss.train_loss_history[0], F.mse_loss(x_to_test_loss, y_to_test_loss), abs_tol=1e-2)
     assert cbs_to_test_loss [0].n_on_step_end_calls == 2
     assert cbs_to_test_loss[0].n_on_epoch_end_calls == 1
+    assert cbs_to_test_loss [0].n_on_train_begin_calls == 1
+    assert cbs_to_test_loss [0].n_on_train_end_calls == 1
